@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { ProjectSwitcher } from './project-switcher'
 import { useBuddyStore } from '@/lib/store'
 import type { ViewMode } from '@/lib/types'
+import { UserProfile } from './user-profile'
 
 interface DashboardHeaderProps {
   onExport?: () => void
@@ -27,9 +28,9 @@ export function DashboardHeader({ onExport }: DashboardHeaderProps) {
           <BookOpen className="h-5 w-5 text-primary" />
           <span className="font-serif font-semibold text-lg tracking-tight">Buddy</span>
         </div>
-        
+
         <div className="h-6 w-px bg-border" />
-        
+
         <ProjectSwitcher />
       </div>
 
@@ -61,6 +62,12 @@ export function DashboardHeader({ onExport }: DashboardHeaderProps) {
           </Button>
         </div>
       )}
+
+      {!project && <div className="flex-1" />}
+
+      <div className="flex items-center ml-2">
+        <UserProfile />
+      </div>
     </header>
   )
 }
