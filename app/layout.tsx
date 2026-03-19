@@ -43,6 +43,8 @@ export const viewport: Viewport = {
   themeColor: '#f8f7f4',
 }
 
+import { AuthProvider } from '@/components/auth-provider'
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -51,7 +53,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${_geist.variable} ${_geistMono.variable} ${_lora.variable} font-sans antialiased`}>
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
         <Analytics />
       </body>
     </html>

@@ -10,16 +10,28 @@ import { NodeCanvas } from '@/components/buddy/node-canvas'
 import { WritingView } from '@/components/buddy/writing-view'
 import { GlobalAIChat } from '@/components/buddy/global-ai-chat'
 import { exportToDocx, downloadBlob } from '@/lib/export'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/components/auth-provider'
 
 export default function BuddyApp() {
   const { showOnboarding, viewMode, getCurrentProject, projects } = useBuddyStore()
   const project = getCurrentProject()
   const [isHydrated, setIsHydrated] = useState(false)
 
+  const { user, loading } = useAuth()
+  const router = useRouter()
+
   // Handle hydration mismatch with localStorage
   useEffect(() => {
     setIsHydrated(true)
   }, [])
+
+  // Redirect to login if unauthenticated
+  useEffect(() => {
+    if (!loading && !user && isHydrated) {
+      router.push('/login')
+    }
+  }, [user, loading, router, isHydrated])
 
   const handleExport = async () => {
     if (!project) return
@@ -35,7 +47,7 @@ export default function BuddyApp() {
   }
 
   // Show loading state during hydration
-  if (!isHydrated) {
+  if (!isHydrated || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex items-center gap-3">
@@ -44,6 +56,11 @@ export default function BuddyApp() {
         </div>
       </div>
     )
+  }
+
+  // Auth protection overlay or redirect
+  if (!user && !loading) {
+    return null // We don't render anything while redirecting
   }
 
   // Show onboarding if no projects or explicitly showing onboarding
