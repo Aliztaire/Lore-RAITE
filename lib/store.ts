@@ -3,11 +3,17 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Project, ViewMode, ChatMessage, CanvasNode, CanvasEdge, OutlineSection } from './types'
+import { firestoreService } from './firestore-service'
 
 interface BuddyStore {
+  // User
+  userId: string | null
+  setUserId: (id: string | null) => void
+
   // Projects
   projects: Project[]
   currentProjectId: string | null
+  setProjects: (projects: Project[]) => void
   
   // UI State
   viewMode: ViewMode
@@ -165,8 +171,13 @@ const createInitialEdges = (outline: Project['outline']): CanvasEdge[] => {
 export const useBuddyStore = create<BuddyStore>()(
   persist(
     (set, get) => ({
+      userId: null,
+      setUserId: (id) => set({ userId: id }),
+
       projects: [],
       currentProjectId: null,
+      setProjects: (projects) => set({ projects, currentProjectId: projects.length > 0 ? projects[0].id : null }),
+
       viewMode: 'dashboard',
       selectedSectionId: null,
       showOnboarding: true,
@@ -193,21 +204,43 @@ export const useBuddyStore = create<BuddyStore>()(
           viewMode: 'dashboard'
         }))
         
+        // Sync to firestore if user is logged in
+        const { userId } = get()
+        if (userId) {
+          firestoreService.saveProject(userId, project)
+        }
+        
         return project
       },
       
       selectProject: (id) => set({ currentProjectId: id }),
       
-      deleteProject: (id) => set(state => ({
-        projects: state.projects.filter(p => p.id !== id),
-        currentProjectId: state.currentProjectId === id ? null : state.currentProjectId
-      })),
+      deleteProject: (id) => {
+        set(state => ({
+          projects: state.projects.filter(p => p.id !== id),
+          currentProjectId: state.currentProjectId === id ? null : state.currentProjectId
+        }))
+
+        // Sync to firestore if user is logged in
+        const { userId } = get()
+        if (userId) {
+          firestoreService.deleteProject(id)
+        }
+      },
       
-      updateProject: (id, updates) => set(state => ({
-        projects: state.projects.map(p => 
-          p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
-        )
-      })),
+      updateProject: (id, updates) => {
+        set(state => ({
+          projects: state.projects.map(p => 
+            p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
+          )
+        }))
+
+        // Sync to firestore if user is logged in
+        const { userId } = get()
+        if (userId) {
+          firestoreService.updateProject(id, updates)
+        }
+      },
       
       setViewMode: (mode) => set({ viewMode: mode }),
       
@@ -219,74 +252,129 @@ export const useBuddyStore = create<BuddyStore>()(
         const project = get().getCurrentProject()
         if (!project) return
         
+        const updatedAt = new Date().toISOString()
         set(state => ({
           projects: state.projects.map(p =>
             p.id === project.id
-              ? { ...p, nodes: [...p.nodes, node], updatedAt: new Date().toISOString() }
+              ? { ...p, nodes: [...p.nodes, node], updatedAt }
               : p
           )
         }))
+
+        const { userId } = get()
+        if (userId) {
+          firestoreService.updateProject(project.id, { 
+            nodes: [...project.nodes, node], 
+            updatedAt 
+          })
+        }
       },
       
       updateNode: (id, updates) => {
         const project = get().getCurrentProject()
         if (!project) return
         
+        const updatedAt = new Date().toISOString()
+        const newNodes = project.nodes.map(n => n.id === id ? { ...n, ...updates } : n)
+        
         set(state => ({
           projects: state.projects.map(p =>
             p.id === project.id
               ? {
                   ...p,
-                  nodes: p.nodes.map(n => n.id === id ? { ...n, ...updates } : n),
-                  updatedAt: new Date().toISOString()
+                  nodes: newNodes,
+                  updatedAt
                 }
               : p
           )
         }))
+
+        const { userId } = get()
+        if (userId) {
+          firestoreService.updateProject(project.id, { 
+            nodes: newNodes, 
+            updatedAt 
+          })
+        }
       },
       
       removeNode: (id) => {
         const project = get().getCurrentProject()
         if (!project) return
         
+        const updatedAt = new Date().toISOString()
+        const newNodes = project.nodes.filter(n => n.id !== id)
+        const newEdges = project.edges.filter(e => e.source !== id && e.target !== id)
+
         set(state => ({
           projects: state.projects.map(p =>
             p.id === project.id
               ? {
                   ...p,
-                  nodes: p.nodes.filter(n => n.id !== id),
-                  edges: p.edges.filter(e => e.source !== id && e.target !== id),
-                  updatedAt: new Date().toISOString()
+                  nodes: newNodes,
+                  edges: newEdges,
+                  updatedAt
                 }
               : p
           )
         }))
+
+        const { userId } = get()
+        if (userId) {
+          firestoreService.updateProject(project.id, { 
+            nodes: newNodes, 
+            edges: newEdges, 
+            updatedAt 
+          })
+        }
       },
       
       addEdge: (edge) => {
         const project = get().getCurrentProject()
         if (!project) return
         
+        const updatedAt = new Date().toISOString()
+        const newEdges = [...project.edges, edge]
+
         set(state => ({
           projects: state.projects.map(p =>
             p.id === project.id
-              ? { ...p, edges: [...p.edges, edge], updatedAt: new Date().toISOString() }
+              ? { ...p, edges: newEdges, updatedAt }
               : p
           )
         }))
+
+        const { userId } = get()
+        if (userId) {
+          firestoreService.updateProject(project.id, { 
+            edges: newEdges, 
+            updatedAt 
+          })
+        }
       },
       
       removeEdge: (id) => {
         const project = get().getCurrentProject()
         if (!project) return
         
+        const updatedAt = new Date().toISOString()
+        const newEdges = project.edges.filter(e => e.id !== id)
+
         set(state => ({
           projects: state.projects.map(p =>
             p.id === project.id
-              ? { ...p, edges: p.edges.filter(e => e.id !== id), updatedAt: new Date().toISOString() }
+              ? { ...p, edges: newEdges, updatedAt }
               : p
           )
         }))
+
+        const { userId } = get()
+        if (userId) {
+          firestoreService.updateProject(project.id, { 
+            edges: newEdges, 
+            updatedAt 
+          })
+        }
       },
       
       updateSection: (sectionId, updates) => {
@@ -296,21 +384,32 @@ export const useBuddyStore = create<BuddyStore>()(
         const updateSectionInOutline = (section: OutlineSection) =>
           section.id === sectionId ? { ...section, ...updates } : section
         
+        const updatedAt = new Date().toISOString()
+        const newOutline = {
+          introduction: updateSectionInOutline(project.outline.introduction),
+          body: project.outline.body.map(updateSectionInOutline),
+          conclusion: updateSectionInOutline(project.outline.conclusion)
+        }
+
         set(state => ({
           projects: state.projects.map(p =>
             p.id === project.id
               ? {
                   ...p,
-                  outline: {
-                    introduction: updateSectionInOutline(p.outline.introduction),
-                    body: p.outline.body.map(updateSectionInOutline),
-                    conclusion: updateSectionInOutline(p.outline.conclusion)
-                  },
-                  updatedAt: new Date().toISOString()
+                  outline: newOutline,
+                  updatedAt
                 }
               : p
           )
         }))
+
+        const { userId } = get()
+        if (userId) {
+          firestoreService.updateProject(project.id, { 
+            outline: newOutline, 
+            updatedAt 
+          })
+        }
       },
       
       toggleSectionComplete: (sectionId) => {
@@ -320,21 +419,32 @@ export const useBuddyStore = create<BuddyStore>()(
         const toggleSection = (section: OutlineSection) =>
           section.id === sectionId ? { ...section, completed: !section.completed } : section
         
+        const updatedAt = new Date().toISOString()
+        const newOutline = {
+          introduction: toggleSection(project.outline.introduction),
+          body: project.outline.body.map(toggleSection),
+          conclusion: toggleSection(project.outline.conclusion)
+        }
+
         set(state => ({
           projects: state.projects.map(p =>
             p.id === project.id
               ? {
                   ...p,
-                  outline: {
-                    introduction: toggleSection(p.outline.introduction),
-                    body: p.outline.body.map(toggleSection),
-                    conclusion: toggleSection(p.outline.conclusion)
-                  },
-                  updatedAt: new Date().toISOString()
+                  outline: newOutline,
+                  updatedAt
                 }
               : p
           )
         }))
+
+        const { userId } = get()
+        if (userId) {
+          firestoreService.updateProject(project.id, { 
+            outline: newOutline, 
+            updatedAt 
+          })
+        }
       },
       
       addGlobalMessage: (message) => set(state => ({
@@ -354,7 +464,12 @@ export const useBuddyStore = create<BuddyStore>()(
       }
     }),
     {
-      name: 'buddy-storage'
+      name: 'buddy-storage',
+      // Only persist non-user data or handle user-specific persistence
+      partialize: (state) => {
+        const { projects, currentProjectId, userId, globalChat, sectionChats, ...rest } = state
+        return rest
+      }
     }
   )
 )
