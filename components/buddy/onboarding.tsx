@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useBuddyStore } from '@/lib/store'
+import { UserProfile } from './user-profile'
 
 export function Onboarding() {
   const [step, setStep] = useState(1)
@@ -32,7 +33,10 @@ export function Onboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
+      <div className="absolute top-4 right-4">
+        <UserProfile />
+      </div>
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
