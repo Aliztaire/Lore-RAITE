@@ -31,14 +31,14 @@ export default function LoginPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f8f7f4] flex items-center justify-center">
+      <div className="min-h-screen bg-transparent flex items-center justify-center">
         <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f7f4] flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-transparent flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden border border-border/50">
         <div className="p-8 pb-6 border-b border-border/50">
           <div className="flex justify-center mb-6">
