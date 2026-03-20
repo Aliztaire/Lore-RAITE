@@ -3,52 +3,66 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Light Academic Aesthetic - Buddy Research Assistant */
+/* Pink + Green glassmorphism — LUMI style */
 :root {
-  --background: oklch(0.98 0.005 90);
-  --foreground: oklch(0.20 0.02 250);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.20 0.02 250);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.20 0.02 250);
-  --primary: oklch(0.50 0.12 85);
-  --primary-foreground: oklch(0.98 0.005 90);
-  --secondary: oklch(0.95 0.005 90);
-  --secondary-foreground: oklch(0.25 0.02 250);
-  --muted: oklch(0.96 0.005 90);
-  --muted-foreground: oklch(0.45 0.02 250);
-  --accent: oklch(0.45 0.10 180);
-  --accent-foreground: oklch(0.98 0.005 90);
-  --destructive: oklch(0.50 0.20 25);
-  --destructive-foreground: oklch(0.98 0.005 90);
-  --border: oklch(0.90 0.005 90);
-  --input: oklch(0.95 0.005 90);
-  --ring: oklch(0.50 0.12 85);
-  --chart-1: oklch(0.50 0.12 85);
-  --chart-2: oklch(0.45 0.10 180);
-  --chart-3: oklch(0.55 0.08 220);
-  --chart-4: oklch(0.55 0.15 35);
-  --chart-5: oklch(0.60 0.10 140);
-  --radius: 0.5rem;
-  --sidebar: oklch(0.97 0.005 90);
-  --sidebar-foreground: oklch(0.20 0.02 250);
-  --sidebar-primary: oklch(0.50 0.12 85);
-  --sidebar-primary-foreground: oklch(0.98 0.005 90);
-  --sidebar-accent: oklch(0.94 0.005 90);
-  --sidebar-accent-foreground: oklch(0.20 0.02 250);
-  --sidebar-border: oklch(0.90 0.005 90);
-  --sidebar-ring: oklch(0.50 0.12 85);
-  
-  /* Custom tokens for Buddy */
-  --node-section: oklch(0.55 0.10 180);
-  --node-concept: oklch(0.60 0.12 85);
-  --node-evidence: oklch(0.58 0.10 140);
-  --edge-supports: oklch(0.50 0.12 140);
-  --edge-contradicts: oklch(0.55 0.18 25);
-  --edge-references: oklch(0.50 0.12 220);
-  --edge-elaborates: oklch(0.55 0.12 85);
-  --canvas-bg: oklch(0.97 0.005 90);
-  --canvas-grid: oklch(0.92 0.005 90);
+  /* Transparent so the html-level gradient shows through all divs */
+  --background: transparent;
+  --foreground: #1e1a1e;
+  --card: rgba(255, 255, 255, 0.60);
+  --card-foreground: #1e1a1e;
+  --popover: rgba(255, 255, 255, 0.75);
+  --popover-foreground: #1e1a1e;
+
+  /* Pink as primary */
+  --primary: #d4547a;
+  --primary-foreground: #fff6f9;
+
+  /* Green as secondary */
+  --secondary: #d6edda;
+  --secondary-foreground: #14402a;
+
+  --muted: #e2d8e0;
+  --muted-foreground: #7a5e6e;
+
+  /* Green as accent */
+  --accent: #3dab68;
+  --accent-foreground: #ffffff;
+
+  --destructive: #d63e5a;
+  --destructive-foreground: #fff6f9;
+
+  --border: #dcc8d4;
+  --input: rgba(255, 255, 255, 0.70);
+  --ring: #d4547a;
+
+  --chart-1: #d4547a;
+  --chart-2: #3dab68;
+  --chart-3: #e87aaa;
+  --chart-4: #5dc48a;
+  --chart-5: #f0a0c0;
+
+  /* Larger radius for LUMI's rounded feel */
+  --radius: 1rem;
+
+  --sidebar: rgba(240, 235, 238, 0.80);
+  --sidebar-foreground: #1e1a1e;
+  --sidebar-primary: #d4547a;
+  --sidebar-primary-foreground: #fff6f9;
+  --sidebar-accent: #d6edda;
+  --sidebar-accent-foreground: #14402a;
+  --sidebar-border: #dcc8d4;
+  --sidebar-ring: #d4547a;
+
+  /* Node canvas tokens */
+  --node-section: #3dab68;
+  --node-concept: #d4547a;
+  --node-evidence: #5dc48a;
+  --edge-supports: #2e8f52;
+  --edge-contradicts: #d63e5a;
+  --edge-references: #e87aaa;
+  --edge-elaborates: #d4547a;
+  --canvas-bg: #fdfbfd;
+  --canvas-grid: #e8d8e0;
 }
 
 @theme inline {
@@ -82,7 +96,7 @@
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 8px);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -91,7 +105,7 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  
+
   /* Node Canvas Colors */
   --color-node-section: var(--node-section);
   --color-node-concept: var(--node-concept);
@@ -108,7 +122,45 @@
   * {
     @apply border-border outline-ring/50;
   }
+
+  /* Gradient lives on html so no child div can cover it */
+  html {
+    min-height: 100%;
+    background-color: #fdfbfd;
+    background-image:
+      radial-gradient(ellipse 65% 55% at 8%  18%,  rgba(240, 100, 160, 0.58) 0%, transparent 70%),
+      radial-gradient(ellipse 60% 50% at 90% 12%,  rgba(60,  185, 110, 0.52) 0%, transparent 68%),
+      radial-gradient(ellipse 55% 50% at 78% 85%,  rgba(255, 140, 190, 0.50) 0%, transparent 65%),
+      radial-gradient(ellipse 50% 45% at 18% 80%,  rgba(70,  200, 130, 0.45) 0%, transparent 62%),
+      radial-gradient(ellipse 40% 35% at 50% 48%,  rgba(255, 180, 210, 0.22) 0%, transparent 60%);
+    background-attachment: fixed;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    background: transparent;
+  }
+}
+
+@layer components {
+  /* Glassmorphism — applied to any semi-transparent card */
+  .bg-card\/50,
+  .bg-card\/30,
+  .bg-secondary\/50,
+  .glass {
+    background-color: rgba(255, 255, 255, 0.52) !important;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(212, 84, 122, 0.18);
+    box-shadow:
+      0 8px 32px rgba(212, 84, 122, 0.10),
+      0 4px 16px rgba(61, 171, 104, 0.08);
+  }
+
+  /* Soft glow on cards */
+  .card, [class*="rounded-xl"], [class*="rounded-2xl"] {
+    box-shadow:
+      0 4px 24px rgba(212, 84, 122, 0.08),
+      0 2px 8px rgba(61, 171, 104, 0.06);
   }
 }

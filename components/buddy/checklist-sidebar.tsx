@@ -84,7 +84,7 @@ export function ChecklistSidebar() {
   }
 
   return (
-    <aside className="w-72 border-r border-border bg-card/30 flex flex-col">
+    <aside className="w-72 border-r border-border bg-white flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center gap-2 mb-3">
