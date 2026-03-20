@@ -1,8 +1,8 @@
 'use client'
 
-import { 
-  FileText, CheckCircle2, Clock, TrendingUp, 
-  MessageSquare, Sparkles, ArrowRight, BarChart3
+import {
+  CheckCircle2, TrendingUp,
+  MessageSquare, Sparkles, ArrowRight
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -34,35 +34,36 @@ export function DashboardOverview() {
 
   const nextIncompleteSection = allSections.find(s => !s.completed)
 
+
   const stats = [
     {
       label: 'Progress',
       value: `${completedSections}/${allSections.length}`,
       subtext: 'sections complete',
-      icon: CheckCircle2,
-      color: 'text-accent'
+      percentage: allSections.length ? completedSections / allSections.length : 0,
+      stroke: '#3dab68',
     },
     {
       label: 'Word Count',
       value: totalWords.toLocaleString(),
       subtext: 'words written',
-      icon: FileText,
-      color: 'text-primary'
+      percentage: Math.min(totalWords / 2000, 1),
+      stroke: '#d4547a',
     },
     {
       label: 'References',
       value: totalReferences,
       subtext: 'citations added',
-      icon: BarChart3,
-      color: 'text-chart-3'
+      percentage: Math.min(totalReferences / 10, 1),
+      stroke: '#3dab68',
     },
     {
       label: 'Last Updated',
-      value: new Date(project.updatedAt).toLocaleDateString(),
+      value: new Date(project.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' }),
       subtext: new Date(project.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      icon: Clock,
-      color: 'text-muted-foreground'
-    }
+      percentage: 1,
+      stroke: '#d4547a',
+    },
   ]
 
   const handleContinueWriting = () => {
@@ -73,7 +74,7 @@ export function DashboardOverview() {
   }
 
   return (
-    <div className="flex-1 p-6 overflow-y-auto">
+    <div className="flex-1 p-6 overflow-y-auto bg-[#f8f7f8]">
       <div className="max-w-5xl mx-auto space-y-6">
         {/* Project Header */}
         <div className="space-y-2">
@@ -94,79 +95,140 @@ export function DashboardOverview() {
           </Button>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {stats.map((stat) => (
-            <Card key={stat.label} className="bg-card/50">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
-                      {stat.label}
-                    </p>
-                    <p className="text-2xl font-bold">{stat.value}</p>
-                    <p className="text-xs text-muted-foreground">{stat.subtext}</p>
+        {/* Stats — donut rings */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+          {stats.map((stat) => {
+            const r = 40
+            const circ = 2 * Math.PI * r
+            const offset = circ * (1 - stat.percentage)
+            return (
+              <div key={stat.label} className="flex flex-col items-center gap-2">
+                <div className="relative w-32 h-32">
+                  <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                    {/* White fill inside */}
+                    <circle cx="50" cy="50" r={r} fill="#f8f7f8" />
+                    {/* Gray track */}
+                    <circle cx="50" cy="50" r={r} fill="none" stroke="#e2e0e2" strokeWidth="8" />
+                    {/* Colored progress */}
+                    <circle
+                      cx="50" cy="50" r={r}
+                      fill="none"
+                      stroke={stat.stroke}
+                      strokeWidth="8"
+                      strokeLinecap="round"
+                      strokeDasharray={circ}
+                      strokeDashoffset={offset}
+                      className="transition-all duration-500"
+                    />
+                  </svg>
+                  {/* Center text */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <p className="text-lg font-bold leading-tight">{stat.value}</p>
+                    {stat.label === 'Last Updated' && (
+                      <p className="text-[10px] text-muted-foreground">{stat.subtext}</p>
+                    )}
                   </div>
-                  <stat.icon className={`h-5 w-5 ${stat.color}`} />
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+                <div className="text-center">
+                  <p className="text-sm font-medium">{stat.label}</p>
+                  {stat.label !== 'Last Updated' && (
+                    <p className="text-xs text-muted-foreground">{stat.subtext}</p>
+                  )}
+                </div>
+              </div>
+            )
+          })}
         </div>
 
-        {/* Section Progress */}
-        <Card className="bg-card/50">
+        {/* Hourglass Section Progress */}
+        <Card className="bg-white">
           <CardHeader>
-            <CardTitle className="text-lg">Section Progress</CardTitle>
-            <CardDescription>Track your progress through each section</CardDescription>
+            <CardTitle className="text-lg">Research Structure</CardTitle>
+            <CardDescription>Your paper's progression through the research hourglass</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {allSections.map((section, index) => {
-                const wordCount = section.content?.split(/\s+/).filter(Boolean).length || 0
-                
-                return (
-                  <button
-                    key={section.id}
-                    onClick={() => {
-                      selectSection(section.id)
-                      setViewMode('writing')
-                    }}
-                    className="w-full text-left p-3 rounded-lg border border-border hover:bg-secondary/50 transition-colors"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        <div className={`
-                          w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium
-                          ${section.completed 
-                            ? 'bg-accent text-accent-foreground' 
-                            : 'bg-secondary text-muted-foreground'}
-                        `}>
-                          {section.completed ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
-                        </div>
-                        <span className={`font-medium ${section.completed ? 'text-muted-foreground' : ''}`}>
+            <div className="flex gap-8 items-center">
+
+              {/* Hourglass SVG */}
+              <div className="shrink-0">
+                {(() => {
+                  // boundary widths at y = 0,60,120,180,240,300,360
+                  const bw = [200, 130, 60, 4, 60, 130, 200]
+                  const SH = 60 // section height
+                  const W  = 200
+                  const colors = ['#3dab68','#5dc48a','#e87aaa','#d4547a','#5dc48a','#3dab68']
+
+                  return (
+                    <svg viewBox="0 0 200 360" width="160" height="360">
+                      {allSections.map((section, i) => {
+                        const lt = (W - bw[i])   / 2
+                        const rt = (W + bw[i])   / 2
+                        const lb = (W - bw[i+1]) / 2
+                        const rb = (W + bw[i+1]) / 2
+                        const yt = i * SH
+                        const yb = (i + 1) * SH
+                        const cy = yt + SH / 2
+                        const fill = section.completed ? colors[i] : '#e2e0e2'
+
+                        return (
+                          <g
+                            key={section.id}
+                            className="cursor-pointer"
+                            onClick={() => { selectSection(section.id); setViewMode('writing') }}
+                          >
+                            <polygon
+                              points={`${lt},${yt} ${rt},${yt} ${rb},${yb} ${lb},${yb}`}
+                              fill={fill}
+                              opacity={0.88}
+                            />
+                            {/* Number badge */}
+                            <circle cx={100} cy={cy} r={13} fill="white" stroke={fill} strokeWidth={2} />
+                            <text
+                              x={100} y={cy + 4.5}
+                              textAnchor="middle"
+                              fontSize="11"
+                              fontWeight="700"
+                              fill={section.completed ? colors[i] : '#aaa'}
+                            >
+                              {i + 1}
+                            </text>
+                          </g>
+                        )
+                      })}
+                    </svg>
+                  )
+                })()}
+              </div>
+
+              {/* Section labels */}
+              <div className="flex-1 space-y-1">
+                {allSections.map((section) => {
+                  const wordCount = section.content?.split(/\s+/).filter(Boolean).length || 0
+                  return (
+                    <button
+                      key={section.id}
+                      onClick={() => { selectSection(section.id); setViewMode('writing') }}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-secondary/50 transition-colors flex items-start gap-3 group"
+                    >
+                      <CheckCircle2 className={`h-4 w-4 mt-0.5 shrink-0 transition-colors ${section.completed ? 'text-accent' : 'text-muted-foreground/25 group-hover:text-muted-foreground/50'}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium ${section.completed ? 'line-through text-muted-foreground' : ''}`}>
                           {section.title}
-                        </span>
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">{section.description}</p>
                       </div>
-                      <span className="text-xs text-muted-foreground">
-                        {wordCount} words
-                      </span>
-                    </div>
-                    <div className="h-1.5 bg-secondary rounded-full overflow-hidden ml-9">
-                      <div 
-                        className={`h-full transition-all ${section.completed ? 'bg-accent' : 'bg-primary'}`}
-                        style={{ width: section.completed ? '100%' : `${Math.min((wordCount / 500) * 100, 100)}%` }}
-                      />
-                    </div>
-                  </button>
-                )
-              })}
+                      <span className="text-xs text-muted-foreground shrink-0">{wordCount}w</span>
+                    </button>
+                  )
+                })}
+              </div>
+
             </div>
           </CardContent>
         </Card>
 
         {/* AI Suggestions */}
-        <Card className="bg-card/50 border-primary/20">
+        <Card className="bg-white border-primary/20">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <MessageSquare className="h-5 w-5 text-primary" />

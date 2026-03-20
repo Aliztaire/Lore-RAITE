@@ -28,6 +28,7 @@ export function WritingView() {
   const [chatInput, setChatInput] = useState('')
   const [isRecording, setIsRecording] = useState(false)
   const [isAiThinking, setIsAiThinking] = useState(false)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [showReferenceForm, setShowReferenceForm] = useState(false)
   const editorRef = useRef<HTMLTextAreaElement>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
@@ -57,6 +58,60 @@ export function WritingView() {
       updateSection(selectedSectionId, { content })
     }
   }
+
+  // AI Semantic Connection Evaluation
+  useEffect(() => {
+    if (!currentSection?.content) return;
+    
+    const timeout = setTimeout(async () => {
+      const state = useBuddyStore.getState();
+      const currentProject = state.projects.find(p => p.id === state.currentProjectId);
+      if (!currentProject) return;
+      
+      setIsAnalyzing(true);
+      const sections = [
+        { id: currentProject.outline.introduction.id, title: currentProject.outline.introduction.title, content: currentProject.outline.introduction.content },
+        ...currentProject.outline.body.map(s => ({ id: s.id, title: s.title, content: s.content })),
+        { id: currentProject.outline.conclusion.id, title: currentProject.outline.conclusion.title, content: currentProject.outline.conclusion.content },
+      ].filter(s => s.content && s.content.trim().length > 10); // only analyze sections with actual content
+      
+      if (sections.length < 2) {
+        setIsAnalyzing(false);
+        return; // Need at least 2 sections to form connections
+      }
+
+      try {
+        const res = await fetch('/api/analyze-connections', {
+           method: 'POST',
+           body: JSON.stringify({ sections })
+        });
+        const newEdges = await res.json();
+        if (Array.isArray(newEdges)) {
+          newEdges.forEach(edge => {
+            const tempProj = useBuddyStore.getState().getCurrentProject();
+            const exists = tempProj?.edges.find(e => 
+              (e.source === edge.source && e.target === edge.target) || 
+              (e.source === edge.target && e.target === edge.source) // undirected overlap check
+            );
+            if (!exists) {
+              useBuddyStore.getState().addEdge({ 
+                id: Math.random().toString(36).substring(2), 
+                source: edge.source, 
+                target: edge.target, 
+                label: edge.label 
+              });
+            }
+          });
+        }
+      } catch (e) {
+        console.error('Semantic edge analysis failed:', e);
+      } finally {
+        setIsAnalyzing(false);
+      }
+    }, 4000); // 4-second delay so it doesn't spam while actively typing
+
+    return () => clearTimeout(timeout);
+  }, [currentSection?.content]);
 
   const handleSendMessage = async () => {
     if (!chatInput.trim() || !selectedSectionId) return
@@ -260,7 +315,13 @@ export function WritingView() {
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {isAnalyzing && (
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 text-xs">
+                <Sparkles className="h-3 w-3 animate-pulse" />
+                Analyzing Connections...
+              </div>
+            )}
             <span className="text-xs text-muted-foreground">
               {currentSection.content?.split(/\s+/).filter(Boolean).length || 0} words
             </span>
@@ -278,9 +339,10 @@ export function WritingView() {
           />
         </div>
 
-        {/* AI Chat Panel */}
-        <div className="h-72 border-t border-border bg-card/30 flex flex-col">
-          <div className="p-3 border-b border-border flex items-center justify-between">
+        {/* Bottom: AI Chat Panel */}
+        <div className="h-80 border-t border-border bg-card/30 flex flex-row shrink-0">
+          <div className="flex-1 flex flex-col min-w-0">
+            <div className="p-3 border-b border-border flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
               <span className="text-sm font-medium">AI Assistant</span>
@@ -366,6 +428,8 @@ export function WritingView() {
             </form>
           </div>
         </div>
+
+      </div>
       </div>
     </div>
   )

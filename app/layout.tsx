@@ -40,7 +40,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#f8f7f4',
+  themeColor: '#fdfbfd',
 }
 
 import { AuthProvider } from '@/components/auth-provider'

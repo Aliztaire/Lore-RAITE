@@ -65,7 +65,12 @@ export default function BuddyApp() {
 
   // Show onboarding if no projects or explicitly showing onboarding
   if (showOnboarding || (projects.length === 0 && !project)) {
-    return <Onboarding />
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <DashboardHeader onExport={handleExport} showProjectActions={false} />
+        <Onboarding />
+      </div>
+    )
   }
 
   return (
@@ -73,15 +78,15 @@ export default function BuddyApp() {
       <DashboardHeader onExport={handleExport} />
       
       <div className="flex-1 flex overflow-hidden">
-        {/* Checklist Sidebar - shown in dashboard and writing views */}
-        {(viewMode === 'dashboard' || viewMode === 'writing') && project && (
-          <ChecklistSidebar />
-        )}
-
         {/* Main Content Area */}
         {viewMode === 'dashboard' && <DashboardOverview />}
         {viewMode === 'canvas' && <NodeCanvas />}
         {viewMode === 'writing' && <WritingView />}
+
+        {/* Checklist Sidebar - shown in dashboard and writing views */}
+        {(viewMode === 'dashboard' || viewMode === 'writing') && project && (
+          <ChecklistSidebar />
+        )}
       </div>
 
       {/* Global AI Chat FAB */}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, Plus, Trash2, FolderOpen } from 'lucide-react'
+import { ChevronDown, Trash2, FolderOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -13,12 +13,8 @@ import {
 import { useBuddyStore } from '@/lib/store'
 
 export function ProjectSwitcher() {
-  const { projects, currentProjectId, selectProject, deleteProject, setShowOnboarding } = useBuddyStore()
+  const { projects, currentProjectId, selectProject, deleteProject } = useBuddyStore()
   const currentProject = projects.find(p => p.id === currentProjectId)
-
-  const handleNewProject = () => {
-    setShowOnboarding(true)
-  }
 
   const handleDeleteProject = (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
@@ -72,11 +68,6 @@ export function ProjectSwitcher() {
             </DropdownMenuItem>
           ))
         )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleNewProject} className="cursor-pointer">
-          <Plus className="h-4 w-4 mr-2" />
-          New Project
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
