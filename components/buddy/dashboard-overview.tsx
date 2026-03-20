@@ -1,16 +1,60 @@
 'use client'
 
+import { useState, useRef, useEffect } from 'react'
 import {
   CheckCircle2, TrendingUp,
-  MessageSquare, Sparkles, ArrowRight
+  MessageSquare, Sparkles, ArrowRight, Send
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { useBuddyStore } from '@/lib/store'
+import { useChat } from '@ai-sdk/react'
+import { DefaultChatTransport, UIMessage } from 'ai'
+import ReactMarkdown from 'react-markdown'
+import { cn } from '@/lib/utils'
 
 export function DashboardOverview() {
   const { getCurrentProject, setViewMode, selectSection } = useBuddyStore()
   const project = getCurrentProject()
+
+  const [input, setInput] = useState('')
+  const chatEndRef = useRef<HTMLDivElement>(null)
+
+  const projectRef = useRef(project)
+  useEffect(() => {
+    projectRef.current = project
+  }, [project])
+
+  const { messages, sendMessage, status } = useChat({
+    transport: new DefaultChatTransport({
+      api: '/api/chat',
+      prepareSendMessagesRequest: ({ messages }: { messages: UIMessage[] }) => {
+        const outline = projectRef.current?.outline
+        const fullPaper = outline ? [
+          { title: outline.introduction.title, content: outline.introduction.content },
+          ...outline.body.map(s => ({ title: s.title, content: s.content })),
+          { title: outline.conclusion.title, content: outline.conclusion.content },
+        ] : []
+
+        return {
+          body: {
+            messages,
+            context: {
+              projectTitle: projectRef.current?.title,
+              projectTopic: projectRef.current?.topic,
+              fullPaper,
+            }
+          }
+        }
+      }
+    }),
+  })
+
+  // Auto-scroll to bottom of chat
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   if (!project) {
     return (
@@ -239,26 +283,94 @@ export function DashboardOverview() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="p-4 rounded-lg bg-secondary/50 border border-border">
-              <p className="text-sm text-muted-foreground mb-3">
-                Try asking:
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  "What's missing from my literature review?",
-                  "Suggest sources for my methodology",
-                  "Check coherence between sections",
-                  "Help me strengthen my thesis"
-                ].map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    className="text-xs px-3 py-1.5 rounded-full bg-card hover:bg-primary/10 border border-border transition-colors"
+            {messages.length > 0 ? (
+              <div className="space-y-4 mb-4 max-h-[300px] overflow-y-auto pr-2">
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={cn(
+                      'max-w-[88%] px-3 py-2.5 rounded-2xl text-sm leading-relaxed',
+                      message.role === 'user'
+                        ? 'ml-auto bg-primary text-primary-foreground rounded-br-sm'
+                        : 'bg-secondary rounded-bl-sm'
+                    )}
                   >
-                    {suggestion}
-                  </button>
+                    {message.parts.map((part, index) => {
+                      if (part.type === 'text') {
+                        return (
+                          <div key={index}>
+                            {message.role === 'assistant' ? (
+                              <div className="space-y-2 leading-relaxed [&>p]:mb-2 last:[&>p]:mb-0 [&>ul]:list-disc [&>ul]:ml-4 [&>ol]:list-decimal [&>ol]:ml-4 [&>li]:mb-1">
+                                <ReactMarkdown>{part.text}</ReactMarkdown>
+                              </div>
+                            ) : (
+                              <div className="whitespace-pre-wrap">{part.text}</div>
+                            )}
+                          </div>
+                        )
+                      }
+                      return null
+                    })}
+                  </div>
                 ))}
+                {(status === 'streaming' || status === 'submitted') && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-secondary rounded-2xl rounded-bl-sm max-w-[60px]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                )}
+                <div ref={chatEndRef} />
               </div>
-            </div>
+            ) : (
+              <div className="p-4 rounded-lg bg-secondary/50 border border-border mb-4">
+                <p className="text-sm text-muted-foreground mb-3">
+                  Try asking:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    "What's missing from my literature review?",
+                    "Suggest sources for my methodology",
+                    "Check coherence between sections",
+                    "Help me strengthen my thesis"
+                  ].map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      onClick={() => {
+                        sendMessage({ text: suggestion })
+                      }}
+                      disabled={status === 'streaming' || status === 'submitted'}
+                      className="text-xs px-3 py-1.5 rounded-full bg-card hover:bg-primary/10 border border-border transition-colors disabled:opacity-50"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            <form onSubmit={(e) => {
+              e.preventDefault()
+              if (!input.trim() || status === 'streaming' || status === 'submitted') return
+              sendMessage({ text: input })
+              setInput('')
+            }} className="flex items-center gap-2">
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask about your research..."
+                disabled={status === 'streaming' || status === 'submitted'}
+                className="flex-1 rounded-xl bg-secondary border-0 focus-visible:ring-1"
+              />
+              <Button
+                type="submit"
+                size="icon"
+                disabled={!input.trim() || status === 'streaming' || status === 'submitted'}
+                className="rounded-xl flex-shrink-0"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </form>
           </CardContent>
         </Card>
       </div>

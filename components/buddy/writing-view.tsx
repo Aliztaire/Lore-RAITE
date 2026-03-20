@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { 
   Send, Mic, MicOff, AlertTriangle, BookMarked, 
   Plus, ChevronLeft, Sparkles, X
@@ -113,13 +114,13 @@ export function WritingView() {
     return () => clearTimeout(timeout);
   }, [currentSection?.content]);
 
-  const handleSendMessage = async () => {
-    if (!chatInput.trim() || !selectedSectionId) return
+  const callAI = async (userText: string, promptOverride?: string) => {
+    if (!selectedSectionId || !project) return
 
     const userMessage: ChatMessage = {
       id: Math.random().toString(36).substring(2, 15),
       role: 'user',
-      content: chatInput,
+      content: promptOverride || userText,
       timestamp: new Date().toISOString(),
       sectionId: selectedSectionId
     }
@@ -128,49 +129,81 @@ export function WritingView() {
     setChatInput('')
     setIsAiThinking(true)
 
-    // Simulate AI response (will be replaced with actual API call)
-    setTimeout(() => {
+    try {
+      const outline = project.outline
+      const fullPaper = [
+        { title: outline.introduction.title, content: outline.introduction.content },
+        ...outline.body.map(s => ({ title: s.title, content: s.content })),
+        { title: outline.conclusion.title, content: outline.conclusion.content },
+      ]
+
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ id: userMessage.id, role: 'user', parts: [{ type: 'text', text: promptOverride || userText }] }],
+          context: {
+            projectTitle: project.title,
+            projectTopic: project.topic,
+            currentSection: currentSection?.title,
+            sectionContent: currentSection?.content,
+            fullPaper,
+          }
+        })
+      })
+
+      if (!response.ok || !response.body) throw new Error('API error')
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let aiText = ''
+      const aiId = Math.random().toString(36).substring(2, 15)
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value, { stream: true })
+        for (const line of chunk.split('\n')) {
+          if (line.startsWith('0:')) {
+            try {
+              aiText += JSON.parse(line.slice(2))
+            } catch { }
+          }
+        }
+      }
+
       const aiMessage: ChatMessage = {
-        id: Math.random().toString(36).substring(2, 15),
+        id: aiId,
         role: 'assistant',
-        content: getAIResponse(chatInput, currentSection?.title || ''),
+        content: aiText || 'No response received.',
         timestamp: new Date().toISOString(),
         sectionId: selectedSectionId
       }
       addSectionMessage(selectedSectionId, aiMessage)
-      setIsAiThinking(false)
-    }, 1500)
-  }
-
-  const getAIResponse = (question: string, sectionTitle: string) => {
-    const responses = [
-      `For your ${sectionTitle} section, consider expanding on the key themes you've introduced. Strong academic writing often includes specific examples and citations to support each major point.`,
-      `Great question! When working on ${sectionTitle}, I recommend structuring your argument with clear topic sentences. Each paragraph should connect logically to your thesis.`,
-      `Looking at your ${sectionTitle}, you might want to address potential counterarguments. This strengthens your position and shows thorough analysis of the topic.`,
-      `For this section, consider adding more transitional phrases to improve flow. Words like "furthermore," "consequently," and "in contrast" help guide readers through your argument.`
-    ]
-    return responses[Math.floor(Math.random() * responses.length)]
-  }
-
-  const handleAudit = () => {
-    if (!selectedSectionId || !currentSection) return
-
-    setIsAiThinking(true)
-    
-    setTimeout(() => {
-      const auditMessage: ChatMessage = {
+    } catch {
+      addSectionMessage(selectedSectionId, {
         id: Math.random().toString(36).substring(2, 15),
         role: 'assistant',
-        content: `**Section Audit: ${currentSection.title}**\n\n` +
-          `**Strengths:**\n- Good foundation for your argument\n- Clear connection to research topic\n\n` +
-          `**Suggestions:**\n- Consider adding 2-3 more supporting citations\n- The transition to the next section could be smoother\n- You might want to address the counterargument about...\n\n` +
-          `**Missing elements:**\n- Statistical evidence to support claims\n- Direct quotes from primary sources\n- Clear topic sentence for the third paragraph`,
+        content: 'Sorry, I encountered an error. Please try again.',
         timestamp: new Date().toISOString(),
         sectionId: selectedSectionId
-      }
-      addSectionMessage(selectedSectionId, auditMessage)
+      })
+    } finally {
       setIsAiThinking(false)
-    }, 2000)
+    }
+  }
+
+  const handleSendMessage = async () => {
+    if (!chatInput.trim() || !selectedSectionId) return
+    await callAI(chatInput)
+  }
+
+  const handleAudit = async () => {
+    if (!selectedSectionId || !currentSection) return
+    await callAI(
+      `Audit my ${currentSection.title} section.`,
+      `Please audit my "${currentSection.title}" section. Identify: strengths, specific suggestions for improvement, and any missing elements such as citations, evidence, or arguments. Use plain text without markdown symbols.`
+    )
   }
 
   const toggleRecording = () => {
@@ -370,13 +403,19 @@ export function WritingView() {
                 <div
                   key={msg.id}
                   className={cn(
-                    'max-w-[80%] p-3 rounded-lg text-sm',
+                    'max-w-[85%] rounded-2xl px-4 py-3.5 text-sm',
                     msg.role === 'user'
                       ? 'ml-auto bg-primary text-primary-foreground'
                       : 'bg-secondary'
                   )}
                 >
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                  {msg.role === 'assistant' ? (
+                    <div className="space-y-2 leading-relaxed [&>p]:mb-2 last:[&>p]:mb-0 [&>ul]:list-disc [&>ul]:ml-4 [&>ol]:list-decimal [&>ol]:ml-4 [&>li]:mb-1">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                  )}
                 </div>
               ))
             )}

@@ -1,4 +1,5 @@
 // Buddy - AI Research Assistant Types
+import { UIMessage } from 'ai'
 
 export interface Project {
   id: string
@@ -64,6 +65,13 @@ export interface ChatMessage {
   content: string
   timestamp: string
   sectionId?: string
+}
+
+export interface ChatSession {
+  id: string
+  title: string
+  messages: UIMessage[]
+  updatedAt: string
 }
 
 export interface OnboardingData {
