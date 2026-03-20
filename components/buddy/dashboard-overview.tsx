@@ -241,7 +241,7 @@ export function DashboardOverview() {
           <CardContent>
             <div className="p-4 rounded-lg bg-secondary/50 border border-border">
               <p className="text-sm text-muted-foreground mb-3">
-                Try asking:
+                Try asking in the floating AI Assistant panel:
               </p>
               <div className="flex flex-wrap gap-2">
                 {[
@@ -252,7 +252,7 @@ export function DashboardOverview() {
                 ].map((suggestion) => (
                   <button
                     key={suggestion}
-                    className="text-xs px-3 py-1.5 rounded-full bg-card hover:bg-primary/10 border border-border transition-colors"
+                    className="text-xs px-3 py-1.5 rounded-full bg-card hover:bg-primary/10 border border-border transition-colors pointer-events-none"
                   >
                     {suggestion}
                   </button>

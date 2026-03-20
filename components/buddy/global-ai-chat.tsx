@@ -2,15 +2,16 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useChat } from '@ai-sdk/react'
-import { DefaultChatTransport } from 'ai'
-import { Send, Sparkles, X, Maximize2, Minimize2, CheckCircle } from 'lucide-react'
+import { DefaultChatTransport, UIMessage } from 'ai'
+import { Send, Sparkles, X, Maximize2, Minimize2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useBuddyStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
+import ReactMarkdown from 'react-markdown'
 
 export function GlobalAIChat() {
-  const { getCurrentProject } = useBuddyStore()
+  const { getCurrentProject, chatSessions, activeChatId, createChatSession, setActiveChat, updateChatMessages } = useBuddyStore()
   const project = getCurrentProject()
   
   const [isOpen, setIsOpen] = useState(false)
@@ -18,19 +19,53 @@ export function GlobalAIChat() {
   const [input, setInput] = useState('')
   const chatEndRef = useRef<HTMLDivElement>(null)
 
-  const { messages, sendMessage, status } = useChat({
+  const projectRef = useRef(project)
+  useEffect(() => {
+    projectRef.current = project
+  }, [project])
+
+  const { messages, sendMessage, status, setMessages } = useChat({
     transport: new DefaultChatTransport({ 
       api: '/api/chat',
-      prepareSendMessagesRequest: ({ messages }) => ({
-        body: {
-          messages,
-          context: {
-            projectTitle: project?.title,
+      prepareSendMessagesRequest: ({ messages }: { messages: UIMessage[] }) => {
+        const outline = projectRef.current?.outline
+        const fullPaper = outline ? [
+          { title: outline.introduction.title, content: outline.introduction.content },
+          ...outline.body.map(s => ({ title: s.title, content: s.content })),
+          { title: outline.conclusion.title, content: outline.conclusion.content },
+        ] : []
+
+        return {
+          body: {
+            messages,
+            context: {
+              projectTitle: projectRef.current?.title,
+              projectTopic: projectRef.current?.topic,
+              fullPaper,
+            }
           }
         }
-      })
+      }
     }),
   })
+
+  // Sync state: When activeChatId changes, load its messages
+  useEffect(() => {
+    const sessions = useBuddyStore.getState().chatSessions
+    const activeSession = sessions.find(s => s.id === activeChatId)
+    if (activeSession) {
+      setMessages(activeSession.messages)
+    } else {
+      setMessages([])
+    }
+  }, [activeChatId, setMessages])
+
+  // Sync state: Save changing messages back into the store
+  useEffect(() => {
+    if (activeChatId && messages.length > 0) {
+      updateChatMessages(activeChatId, messages)
+    }
+  }, [messages, activeChatId, updateChatMessages])
 
   const isLoading = status === 'streaming' || status === 'submitted'
 
@@ -38,11 +73,19 @@ export function GlobalAIChat() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!input.trim() || isLoading) return
-    sendMessage({ text: input })
-    setInput('')
+  const handleSubmit = (e?: React.FormEvent, overrideText?: string) => {
+    if (e) e.preventDefault()
+    const textToSend = overrideText || input
+    if (!textToSend.trim() || isLoading) return
+
+    if (!activeChatId) {
+      const newId = Math.random().toString(36).substring(2, 15)
+      const title = textToSend.length > 30 ? textToSend.substring(0, 30) + '...' : textToSend
+      createChatSession(newId, title)
+    }
+
+    sendMessage({ text: textToSend })
+    if (!overrideText) setInput('')
   }
 
   const quickActions = [
@@ -56,7 +99,7 @@ export function GlobalAIChat() {
     return (
       <Button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg"
+        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-50 transition-transform hover:scale-105"
         size="icon"
       >
         <Sparkles className="h-6 w-6" />
@@ -67,21 +110,23 @@ export function GlobalAIChat() {
   return (
     <div 
       className={cn(
-        'fixed bottom-6 right-6 bg-card border border-border rounded-xl shadow-2xl flex flex-col transition-all duration-300',
+        'fixed bottom-6 right-6 bg-card border border-border rounded-xl shadow-2xl flex flex-col transition-all duration-300 z-50 pointer-events-auto',
         isExpanded ? 'w-[500px] h-[600px]' : 'w-96 h-[480px]'
       )}
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-border">
+      <div className="flex items-center justify-between p-4 border-b border-border bg-card/80 backdrop-blur-sm rounded-t-xl">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          <span className="font-medium">Research Assistant</span>
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10">
+            <Sparkles className="h-4 w-4 text-primary" />
+          </div>
+          <span className="font-semibold text-sm">Research Assistant</span>
         </div>
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-secondary/80"
             onClick={() => setIsExpanded(!isExpanded)}
           >
             {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
@@ -89,7 +134,7 @@ export function GlobalAIChat() {
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-secondary/80"
             onClick={() => setIsOpen(false)}
           >
             <X className="h-4 w-4" />
@@ -98,20 +143,21 @@ export function GlobalAIChat() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white/85">
         {messages.length === 0 ? (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground text-center">
-              Ask me anything about your research paper
-            </p>
+          <div className="space-y-5 pt-2">
+            <div className="text-center space-y-1">
+              <p className="font-medium text-sm">How can I help?</p>
+              <p className="text-xs text-muted-foreground">
+                Ask me anything about your research paper.
+              </p>
+            </div>
             <div className="grid gap-2">
               {quickActions.map((action) => (
                 <button
                   key={action.label}
-                  onClick={() => {
-                    sendMessage({ text: action.prompt })
-                  }}
-                  className="text-left text-sm px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+                  onClick={() => handleSubmit(undefined, action.prompt)}
+                  className="text-left text-sm px-4 py-2.5 rounded-xl bg-secondary hover:bg-secondary/80 focus:bg-secondary/80 transition-colors border border-border/50 text-foreground"
                 >
                   {action.label}
                 </button>
@@ -123,17 +169,21 @@ export function GlobalAIChat() {
             <div
               key={message.id}
               className={cn(
-                'max-w-[85%] p-3 rounded-lg text-sm',
+                'max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed',
                 message.role === 'user'
-                  ? 'ml-auto bg-primary text-primary-foreground'
-                  : 'bg-secondary'
+                  ? 'ml-auto bg-primary text-primary-foreground rounded-br-sm'
+                  : 'bg-secondary rounded-bl-sm'
               )}
             >
               {message.parts.map((part, index) => {
                 if (part.type === 'text') {
                   return (
-                    <div key={index} className="whitespace-pre-wrap prose prose-sm dark:prose-invert max-w-none">
-                      {part.text}
+                    <div key={index} className={message.role === 'assistant' ? "whitespace-pre-wrap prose prose-sm dark:prose-invert max-w-none space-y-2 leading-relaxed [&>p]:mb-2 last:[&>p]:mb-0 [&>ul]:list-disc [&>ul]:ml-4 [&>ol]:list-decimal [&>ol]:ml-4 [&>li]:mb-1" : "whitespace-pre-wrap"}>
+                      {message.role === 'assistant' ? (
+                        <ReactMarkdown>{part.text}</ReactMarkdown>
+                      ) : (
+                        part.text
+                      )}
                     </div>
                   )
                 }
@@ -143,29 +193,26 @@ export function GlobalAIChat() {
           ))
         )}
         {isLoading && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <div className="flex gap-1">
-              <span className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0ms' }} />
-              <span className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '150ms' }} />
-              <span className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '300ms' }} />
-            </div>
-            <span>Analyzing...</span>
+          <div className="flex items-center gap-2 px-3 py-2 bg-secondary rounded-2xl rounded-bl-sm max-w-[60px]">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0ms' }} />
+            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '150ms' }} />
+            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '300ms' }} />
           </div>
         )}
         <div ref={chatEndRef} />
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSubmit} className="p-4 border-t border-border">
+      <form onSubmit={(e) => handleSubmit(e)} className="p-3 border-t border-border bg-card/80 backdrop-blur-sm rounded-b-xl">
         <div className="flex items-center gap-2">
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask about your research..."
             disabled={isLoading}
-            className="flex-1"
+            className="flex-1 rounded-xl bg-secondary border-0 focus-visible:ring-1"
           />
-          <Button type="submit" size="icon" disabled={!input.trim() || isLoading}>
+          <Button type="submit" size="icon" disabled={!input.trim() || isLoading} className="rounded-xl flex-shrink-0">
             <Send className="h-4 w-4" />
           </Button>
         </div>

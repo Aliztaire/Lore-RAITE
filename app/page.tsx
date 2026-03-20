@@ -14,7 +14,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/auth-provider'
 
 export default function BuddyApp() {
-  const { showOnboarding, viewMode, getCurrentProject, projects } = useBuddyStore()
+  const { showOnboarding, viewMode, getCurrentProject, projects, chatSidebarPinned, chatSidebarOpen, chatSidebarWidth } = useBuddyStore()
   const project = getCurrentProject()
   const [isHydrated, setIsHydrated] = useState(false)
 
@@ -74,7 +74,13 @@ export default function BuddyApp() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div
+      className="min-h-screen bg-background flex flex-col"
+      style={{
+        paddingRight: chatSidebarPinned && chatSidebarOpen ? chatSidebarWidth : 0,
+        transition: 'padding-right 300ms ease-in-out',
+      }}
+    >
       <DashboardHeader onExport={handleExport} />
       
       <div className="flex-1 flex overflow-hidden">

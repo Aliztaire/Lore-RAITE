@@ -2,7 +2,8 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Project, ViewMode, ChatMessage, CanvasNode, CanvasEdge, OutlineSection } from './types'
+import type { Project, ViewMode, ChatMessage, CanvasNode, CanvasEdge, OutlineSection, ChatSession } from './types'
+import { UIMessage } from 'ai'
 import { firestoreService } from './firestore-service'
 
 interface BuddyStore {
@@ -19,9 +20,13 @@ interface BuddyStore {
   viewMode: ViewMode
   selectedSectionId: string | null
   showOnboarding: boolean
+  chatSidebarPinned: boolean
+  chatSidebarOpen: boolean
+  chatSidebarWidth: number
   
-  // Chat
-  globalChat: ChatMessage[]
+  // Chat Sessions
+  chatSessions: ChatSession[]
+  activeChatId: string | null
   sectionChats: Record<string, ChatMessage[]>
   
   // Actions
@@ -33,6 +38,9 @@ interface BuddyStore {
   setViewMode: (mode: ViewMode) => void
   selectSection: (id: string | null) => void
   setShowOnboarding: (show: boolean) => void
+  setChatSidebarPinned: (pinned: boolean) => void
+  setChatSidebarOpen: (open: boolean) => void
+  setChatSidebarWidth: (width: number) => void
   
   // Canvas actions
   addNode: (node: CanvasNode) => void
@@ -46,8 +54,11 @@ interface BuddyStore {
   toggleSectionComplete: (sectionId: string) => void
   
   // Chat actions
-  addGlobalMessage: (message: ChatMessage) => void
   addSectionMessage: (sectionId: string, message: ChatMessage) => void
+  createChatSession: (id: string, title?: string, messages?: UIMessage[]) => void
+  setActiveChat: (id: string | null) => void
+  deleteChatSession: (id: string) => void
+  updateChatMessages: (id: string, messages: UIMessage[]) => void
   
   // Utility
   getCurrentProject: () => Project | null
@@ -181,7 +192,11 @@ export const useBuddyStore = create<BuddyStore>()(
       viewMode: 'dashboard',
       selectedSectionId: null,
       showOnboarding: true,
-      globalChat: [],
+      chatSidebarPinned: false,
+      chatSidebarOpen: false,
+      chatSidebarWidth: 380,
+      chatSessions: [],
+      activeChatId: null,
       sectionChats: {},
       
       createProject: (title, topic) => {
@@ -247,6 +262,9 @@ export const useBuddyStore = create<BuddyStore>()(
       selectSection: (id) => set({ selectedSectionId: id }),
       
       setShowOnboarding: (show) => set({ showOnboarding: show }),
+      setChatSidebarPinned: (pinned) => set({ chatSidebarPinned: pinned }),
+      setChatSidebarOpen: (open) => set({ chatSidebarOpen: open }),
+      setChatSidebarWidth: (width) => set({ chatSidebarWidth: width }),
       
       addNode: (node) => {
         const project = get().getCurrentProject()
@@ -447,15 +465,37 @@ export const useBuddyStore = create<BuddyStore>()(
         }
       },
       
-      addGlobalMessage: (message) => set(state => ({
-        globalChat: [...state.globalChat, message]
-      })),
-      
       addSectionMessage: (sectionId, message) => set(state => ({
         sectionChats: {
           ...state.sectionChats,
           [sectionId]: [...(state.sectionChats[sectionId] || []), message]
         }
+      })),
+      
+      createChatSession: (id, title = 'New Chat', messages = []) => {
+        const newSession: ChatSession = {
+          id,
+          title,
+          messages,
+          updatedAt: new Date().toISOString()
+        }
+        set(state => ({
+          chatSessions: [newSession, ...state.chatSessions],
+          activeChatId: id
+        }))
+      },
+
+      setActiveChat: (id) => set({ activeChatId: id }),
+
+      deleteChatSession: (id) => set(state => ({
+        chatSessions: state.chatSessions.filter(s => s.id !== id),
+        activeChatId: state.activeChatId === id ? null : state.activeChatId
+      })),
+
+      updateChatMessages: (id, messages) => set(state => ({
+        chatSessions: state.chatSessions.map(s => 
+          s.id === id ? { ...s, messages, updatedAt: new Date().toISOString() } : s
+        )
       })),
       
       getCurrentProject: () => {
@@ -467,7 +507,7 @@ export const useBuddyStore = create<BuddyStore>()(
       name: 'buddy-storage',
       // Only persist non-user data or handle user-specific persistence
       partialize: (state) => {
-        const { projects, currentProjectId, userId, globalChat, sectionChats, ...rest } = state
+        const { projects, currentProjectId, userId, sectionChats, ...rest } = state
         return rest
       }
     }
