@@ -1,11 +1,105 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { ArrowRight, FolderOpen, Sparkles, Pencil, Trash2, Check, X, Search } from 'lucide-react'
+import { ArrowRight, FolderOpen, Sparkles, Pencil, Trash2, Check, X, Search, BookOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useBuddyStore } from '@/lib/store'
+import type { Reference } from '@/lib/types'
 import { cn } from '@/lib/utils'
+
+// ─── OpenAlex helpers ──────────────────────────────────────────────────────────
+
+function toAPA7Author(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/)
+  if (parts.length <= 1) return fullName
+  const lastName = parts[parts.length - 1]
+  const initials = parts.slice(0, -1).map(p => p[0].toUpperCase() + '.').join(' ')
+  return `${lastName}, ${initials}`
+}
+
+function buildAuthorString(authors: string[]): string {
+  const formatted = authors.map(toAPA7Author)
+  if (formatted.length === 0) return 'Unknown Author'
+  if (formatted.length === 1) return formatted[0]
+  if (formatted.length === 2) return `${formatted[0]}, & ${formatted[1]}`
+  if (formatted.length <= 20)
+    return formatted.slice(0, -1).join(', ') + ', & ' + formatted[formatted.length - 1]
+  return formatted.slice(0, 19).join(', ') + ', . . . ' + formatted[formatted.length - 1]
+}
+
+function workToReference(work: any): Reference {
+  const authors: string[] = (work.authorships ?? []).map((a: any) => a?.author?.display_name ?? 'Unknown')
+  const year = work.publication_year ?? null
+  const journal = work.primary_location?.source?.display_name ?? null
+  const volume = work.biblio?.volume ?? null
+  const issue = work.biblio?.issue ?? null
+  const firstPage = work.biblio?.first_page ?? null
+  const lastPage = work.biblio?.last_page ?? null
+  const doi = work.doi ?? null
+
+  const authorStr = buildAuthorString(authors)
+  const yearStr = year ? `(${year})` : '(n.d.)'
+  let citation = `${authorStr} ${yearStr}. ${work.title || 'Untitled'}.`
+  if (journal) {
+    citation += ` ${journal}`
+    if (volume) {
+      citation += `, ${volume}`
+      if (issue) citation += `(${issue})`
+    }
+    if (firstPage) {
+      citation += `, ${firstPage}${lastPage ? `–${lastPage}` : ''}`
+    }
+    citation += '.'
+  }
+  if (doi) {
+    const doiUrl = doi.startsWith('http') ? doi : `https://doi.org/${doi}`
+    citation += ` ${doiUrl}`
+  }
+
+  // Reconstruct abstract from inverted index
+  let abstract = ''
+  if (work.abstract_inverted_index) {
+    try {
+      const wordPositions: [string, number][] = []
+      for (const [word, positions] of Object.entries(work.abstract_inverted_index as Record<string, number[]>)) {
+        for (const pos of positions) wordPositions.push([word, pos])
+      }
+      wordPositions.sort((a, b) => a[1] - b[1])
+      abstract = wordPositions.map(wp => wp[0]).join(' ').substring(0, 300)
+      if (abstract.length === 300) abstract += '…'
+    } catch { abstract = '' }
+  }
+
+  return {
+    id: work.id || Math.random().toString(36).substring(2, 15),
+    title: work.title || 'Untitled',
+    authors,
+    year: year?.toString() ?? 'n.d.',
+    type: 'article',
+    citation,
+    doi: doi ?? undefined,
+    journal: journal ?? undefined,
+    volume: volume ?? undefined,
+    issue: issue ?? undefined,
+    pages: firstPage ? (lastPage ? `${firstPage}–${lastPage}` : firstPage) : undefined,
+    notes: abstract,
+  }
+}
+
+async function fetchStartingReferences(topic: string): Promise<Reference[]> {
+  try {
+    const res = await fetch(
+      `https://api.openalex.org/works?search=${encodeURIComponent(topic)}&per_page=8&sort=cited_by_count:desc`,
+      { headers: { 'User-Agent': 'Buddy-Research-App' } }
+    )
+    if (!res.ok) return []
+    const data = await res.json()
+    return (data.results ?? []).map(workToReference)
+  } catch {
+    return []
+  }
+}
 
 const PLACEHOLDER_EXAMPLES = [
   'e.g., "Communicating with patients with schizophrenia"',
@@ -23,6 +117,7 @@ const PLACEHOLDER_EXAMPLES = [
 export function Onboarding() {
   const [text, setText] = useState('')
   const [placeholderIndex, setPlaceholderIndex] = useState(0)
+  const [isSeeding, setIsSeeding] = useState(false)
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -31,7 +126,7 @@ export function Onboarding() {
     return () => clearInterval(interval)
   }, [])
 
-  const { createProject, updateProject, deleteProject, projects, selectProject, setShowOnboarding } = useBuddyStore()
+  const { createProject, updateProject, updateSection, deleteProject, projects, selectProject, setShowOnboarding } = useBuddyStore()
 
   const [search, setSearch] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -46,10 +141,29 @@ export function Onboarding() {
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .filter(p => p.title.toLowerCase().includes(search.toLowerCase()))
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!text.trim()) return
-    createProject(text.trim(), text.trim())
+    if (!text.trim() || isSeeding) return
+
+    setIsSeeding(true)
+    try {
+      // Fetch starting references BEFORE creating the project so we can
+      // populate the Literature Review section immediately on load.
+      const refs = await fetchStartingReferences(text.trim())
+
+      // Create the project (this sets showOnboarding: false → component unmounts)
+      const project = createProject(text.trim(), text.trim())
+
+      // Populate the Literature Review section with the fetched references
+      if (refs.length > 0) {
+        const litSection = project.outline.body.find(s => s.title === 'Literature Review')
+        if (litSection) {
+          updateSection(litSection.id, { references: refs })
+        }
+      }
+    } finally {
+      setIsSeeding(false)
+    }
   }
 
   const handleSelectExisting = (projectId: string) => {
@@ -298,18 +412,34 @@ export function Onboarding() {
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 rows={5}
-                className="bg-transparent border-0 focus-visible:ring-0 px-1 py-0 text-lg placeholder:text-muted-foreground/50 resize-none font-medium leading-relaxed"
+                disabled={isSeeding}
+                className="bg-transparent border-0 focus-visible:ring-0 px-1 py-0 text-lg placeholder:text-muted-foreground/50 resize-none font-medium leading-relaxed disabled:opacity-60"
               />
             </div>
 
             <Button
               type="submit"
               className="w-full gap-2"
-              disabled={!text.trim()}
+              disabled={!text.trim() || isSeeding}
             >
-              Create Project
-              <ArrowRight className="h-4 w-4" />
+              {isSeeding ? (
+                <>
+                  <BookOpen className="h-4 w-4 animate-pulse" />
+                  Finding your starting literature…
+                </>
+              ) : (
+                <>
+                  Create Project
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
             </Button>
+
+            {isSeeding && (
+              <p className="text-center text-xs text-muted-foreground animate-pulse">
+                Buddy is searching OpenAlex for relevant RRL references to get you started.
+              </p>
+            )}
           </form>
         </div>
       </div>
