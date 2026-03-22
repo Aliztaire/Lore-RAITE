@@ -45,10 +45,12 @@ export interface CanvasNode {
   x: number
   y: number
   sectionId?: string
+  location?: string
   data?: {
     content?: string
     source?: string
     importance?: 'high' | 'medium' | 'low'
+    paragraphIndex?: number
   }
 }
 
@@ -57,6 +59,7 @@ export interface CanvasEdge {
   source: string
   target: string
   label: 'supports' | 'contradicts' | 'references' | 'elaborates'
+  description?: string
 }
 
 export interface ChatMessage {
@@ -80,4 +83,11 @@ export interface OnboardingData {
   clarifyingAnswers: Record<string, string>
 }
 
-export type ViewMode = 'dashboard' | 'canvas' | 'writing'
+export type ViewMode = 'dashboard' | 'canvas' | 'writing' | 'literature' | 'analyzer'
+
+export interface VoiceNote {
+  id: string
+  content: string
+  tag?: string
+  createdAt: string
+}

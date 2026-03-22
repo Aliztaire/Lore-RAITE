@@ -8,13 +8,16 @@ import { ChecklistSidebar } from '@/components/buddy/checklist-sidebar'
 import { DashboardOverview } from '@/components/buddy/dashboard-overview'
 import { NodeCanvas } from '@/components/buddy/node-canvas'
 import { WritingView } from '@/components/buddy/writing-view'
+import { VoiceNoteTaker } from '@/components/buddy/voice-note-taker'
 import { GlobalAIChat } from '@/components/buddy/global-ai-chat'
+import { Analyzer } from '@/components/Analyzer'
+import { IntegratedLiteratureAnalyzer } from '@/components/buddy/integrated-literature-analyzer'
 import { exportToDocx, downloadBlob } from '@/lib/export'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/auth-provider'
 
 export default function BuddyApp() {
-  const { showOnboarding, viewMode, getCurrentProject, projects, chatSidebarPinned, chatSidebarOpen, chatSidebarWidth } = useBuddyStore()
+  const { showOnboarding, viewMode, getCurrentProject, projects, focusMode } = useBuddyStore()
   const project = getCurrentProject()
   const [isHydrated, setIsHydrated] = useState(false)
 
@@ -35,10 +38,13 @@ export default function BuddyApp() {
 
   const handleExport = async () => {
     if (!project) return
-    
+
+    const filename = `${project.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.docx`
+    const confirmed = confirm(`Export "${project.title}" as a Word document?\n\nThe file will be saved as: ${filename}`)
+    if (!confirmed) return
+
     try {
       const blob = await exportToDocx(project)
-      const filename = `${project.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.docx`
       downloadBlob(blob, filename)
     } catch (error) {
       console.error('[v0] Export failed:', error)
@@ -66,7 +72,7 @@ export default function BuddyApp() {
   // Show onboarding if no projects or explicitly showing onboarding
   if (showOnboarding || (projects.length === 0 && !project)) {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
+      <div className="h-screen bg-background flex flex-col">
         <DashboardHeader onExport={handleExport} showProjectActions={false} />
         <Onboarding />
       </div>
@@ -74,29 +80,31 @@ export default function BuddyApp() {
   }
 
   return (
-    <div
-      className="min-h-screen bg-background flex flex-col"
-      style={{
-        paddingRight: chatSidebarPinned && chatSidebarOpen ? chatSidebarWidth : 0,
-        transition: 'padding-right 300ms ease-in-out',
-      }}
-    >
+    <div className="h-screen bg-background flex flex-col">
       <DashboardHeader onExport={handleExport} />
-      
+
       <div className="flex-1 flex overflow-hidden">
+        {/* Voice Notes Panel */}
+        {project && <VoiceNoteTaker />}
+
         {/* Main Content Area */}
         {viewMode === 'dashboard' && <DashboardOverview />}
         {viewMode === 'canvas' && <NodeCanvas />}
         {viewMode === 'writing' && <WritingView />}
+        {viewMode === 'analyzer' && (
+          <div className="flex-1 overflow-y-auto bg-zinc-50 p-6">
+            <Analyzer />
+          </div>
+        )}
+        {viewMode === 'literature' && <IntegratedLiteratureAnalyzer />}
 
-        {/* Checklist Sidebar - shown in dashboard and writing views */}
-        {(viewMode === 'dashboard' || viewMode === 'writing') && project && (
+        {/* Checklist Sidebar - shown in dashboard and writing views (hidden in writing focus mode) */}
+        {(viewMode === 'dashboard' || (viewMode === 'writing' && !focusMode)) && project && (
           <ChecklistSidebar />
         )}
       </div>
 
-      {/* Global AI Chat FAB */}
-      {project && <GlobalAIChat />}
+      <GlobalAIChat />
     </div>
   )
 }

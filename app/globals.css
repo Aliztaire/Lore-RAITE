@@ -123,6 +123,26 @@
     @apply border-border outline-ring/50;
   }
 
+  /* Thin, subtle scrollbars everywhere */
+  *::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: #dcc8d4;
+    border-radius: 99px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: #d4547a66;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #dcc8d4 transparent;
+  }
+
   /* Gradient lives on html so no child div can cover it */
   html {
     min-height: 100%;

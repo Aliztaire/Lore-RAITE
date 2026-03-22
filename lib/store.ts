@@ -2,9 +2,10 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Project, ViewMode, ChatMessage, CanvasNode, CanvasEdge, OutlineSection, ChatSession } from './types'
+import type { Project, ViewMode, ChatMessage, CanvasNode, CanvasEdge, OutlineSection, ChatSession, VoiceNote } from './types'
 import { UIMessage } from 'ai'
 import { firestoreService } from './firestore-service'
+
 
 interface BuddyStore {
   // User
@@ -23,12 +24,18 @@ interface BuddyStore {
   chatSidebarPinned: boolean
   chatSidebarOpen: boolean
   chatSidebarWidth: number
-  
+  focusMode: boolean
+
   // Chat Sessions
   chatSessions: ChatSession[]
   activeChatId: string | null
+  globalChat: ChatMessage[]
   sectionChats: Record<string, ChatMessage[]>
-  
+
+  // Voice Notes
+  voiceNotes: VoiceNote[]
+  isVoiceNotePanelOpen: boolean
+
   // Actions
   createProject: (title: string, topic: string) => Project
   selectProject: (id: string) => void
@@ -41,6 +48,13 @@ interface BuddyStore {
   setChatSidebarPinned: (pinned: boolean) => void
   setChatSidebarOpen: (open: boolean) => void
   setChatSidebarWidth: (width: number) => void
+  setFocusMode: (on: boolean) => void
+  setVoiceNotePanelOpen: (open: boolean) => void
+
+  // Voice Note actions
+  addVoiceNote: (content: string, tag?: VoiceNote['tag']) => void
+  removeVoiceNote: (id: string) => void
+  updateVoiceNote: (id: string, content: string, tag?: VoiceNote['tag']) => void
   
   // Canvas actions
   addNode: (node: CanvasNode) => void
@@ -52,8 +66,12 @@ interface BuddyStore {
   // Section actions
   updateSection: (sectionId: string, updates: Partial<OutlineSection>) => void
   toggleSectionComplete: (sectionId: string) => void
-  
+  addOutlineSection: (title: string) => void
+  removeOutlineSection: (sectionId: string) => void
+  reorderOutlineSections: (sections: OutlineSection[]) => void
+
   // Chat actions
+  addGlobalMessage: (message: ChatMessage) => void
   addSectionMessage: (sectionId: string, message: ChatMessage) => void
   createChatSession: (id: string, title?: string, messages?: UIMessage[]) => void
   setActiveChat: (id: string | null) => void
@@ -195,9 +213,13 @@ export const useBuddyStore = create<BuddyStore>()(
       chatSidebarPinned: false,
       chatSidebarOpen: false,
       chatSidebarWidth: 380,
+      focusMode: false,
       chatSessions: [],
       activeChatId: null,
+      globalChat: [],
       sectionChats: {},
+      voiceNotes: [],
+      isVoiceNotePanelOpen: false,
       
       createProject: (title, topic) => {
         const outline = createDefaultOutline()
@@ -265,7 +287,21 @@ export const useBuddyStore = create<BuddyStore>()(
       setChatSidebarPinned: (pinned) => set({ chatSidebarPinned: pinned }),
       setChatSidebarOpen: (open) => set({ chatSidebarOpen: open }),
       setChatSidebarWidth: (width) => set({ chatSidebarWidth: width }),
-      
+      setFocusMode: (on) => set({ focusMode: on }),
+      setVoiceNotePanelOpen: (open) => set({ isVoiceNotePanelOpen: open }),
+
+      addVoiceNote: (content, tag) => set(state => ({
+        voiceNotes: [{ id: generateId(), content, tag, createdAt: new Date().toISOString() }, ...state.voiceNotes]
+      })),
+
+      removeVoiceNote: (id) => set(state => ({
+        voiceNotes: state.voiceNotes.filter(n => n.id !== id)
+      })),
+
+      updateVoiceNote: (id, content, tag) => set(state => ({
+        voiceNotes: state.voiceNotes.map(n => n.id === id ? { ...n, content, tag } : n)
+      })),
+
       addNode: (node) => {
         const project = get().getCurrentProject()
         if (!project) return
@@ -465,13 +501,78 @@ export const useBuddyStore = create<BuddyStore>()(
         }
       },
       
+      addOutlineSection: (title) => {
+        const project = get().getCurrentProject()
+        if (!project) return
+        const newSection: OutlineSection = {
+          id: generateId(), title, description: '',
+          content: '', completed: false, references: [], aiNotes: []
+        }
+        const updatedAt = new Date().toISOString()
+        const newOutline = { ...project.outline, body: [...project.outline.body, newSection] }
+        set(state => ({
+          projects: state.projects.map(p =>
+            p.id === project.id ? { ...p, outline: newOutline, updatedAt } : p
+          )
+        }))
+        const { userId } = get()
+        if (userId) firestoreService.updateProject(project.id, { outline: newOutline, updatedAt })
+      },
+
+      removeOutlineSection: (sectionId) => {
+        const project = get().getCurrentProject()
+        if (!project) return
+        const allSections = [project.outline.introduction, ...project.outline.body, project.outline.conclusion]
+        if (allSections.length <= 1) return
+        const updatedAt = new Date().toISOString()
+        let newOutline = { ...project.outline }
+        if (project.outline.introduction.id === sectionId) {
+          if (project.outline.body.length > 0) {
+            newOutline = { introduction: project.outline.body[0], body: project.outline.body.slice(1), conclusion: project.outline.conclusion }
+          }
+        } else if (project.outline.conclusion.id === sectionId) {
+          if (project.outline.body.length > 0) {
+            newOutline = { introduction: project.outline.introduction, body: project.outline.body.slice(0, -1), conclusion: project.outline.body[project.outline.body.length - 1] }
+          }
+        } else {
+          newOutline = { ...project.outline, body: project.outline.body.filter(s => s.id !== sectionId) }
+        }
+        set(state => ({
+          projects: state.projects.map(p =>
+            p.id === project.id ? { ...p, outline: newOutline, updatedAt } : p
+          )
+        }))
+        const { userId } = get()
+        if (userId) firestoreService.updateProject(project.id, { outline: newOutline, updatedAt })
+      },
+
+      reorderOutlineSections: (sections) => {
+        const project = get().getCurrentProject()
+        if (!project || sections.length === 0) return
+        const updatedAt = new Date().toISOString()
+        const newOutline = sections.length === 1
+          ? { introduction: sections[0], body: [], conclusion: sections[0] }
+          : { introduction: sections[0], body: sections.slice(1, -1), conclusion: sections[sections.length - 1] }
+        set(state => ({
+          projects: state.projects.map(p =>
+            p.id === project.id ? { ...p, outline: newOutline, updatedAt } : p
+          )
+        }))
+        const { userId } = get()
+        if (userId) firestoreService.updateProject(project.id, { outline: newOutline, updatedAt })
+      },
+
+      addGlobalMessage: (message) => set(state => ({
+        globalChat: [...state.globalChat, message]
+      })),
+
       addSectionMessage: (sectionId, message) => set(state => ({
         sectionChats: {
           ...state.sectionChats,
           [sectionId]: [...(state.sectionChats[sectionId] || []), message]
         }
       })),
-      
+
       createChatSession: (id, title = 'New Chat', messages = []) => {
         const newSession: ChatSession = {
           id,
@@ -507,7 +608,7 @@ export const useBuddyStore = create<BuddyStore>()(
       name: 'buddy-storage',
       // Only persist non-user data or handle user-specific persistence
       partialize: (state) => {
-        const { projects, currentProjectId, userId, sectionChats, ...rest } = state
+        const { projects, currentProjectId, userId, globalChat, sectionChats, ...rest } = state
         return rest
       }
     }

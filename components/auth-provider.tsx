@@ -19,10 +19,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const { setUserId, setProjects } = useBuddyStore()
 
   useEffect(() => {
+    // Safety timeout — if Firebase never responds, unblock the UI after 5s
+    const timeout = setTimeout(() => setLoading(false), 5000)
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      clearTimeout(timeout)
       setUser(user)
       setUserId(user?.uid || null)
-      
+
       if (user) {
         try {
           const projects = await firestoreService.getProjects(user.uid)
@@ -34,11 +38,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       } else {
         setProjects([])
       }
-      
+
       setLoading(false)
     })
 
-    return () => unsubscribe()
+    return () => {
+      clearTimeout(timeout)
+      unsubscribe()
+    }
   }, [setUserId, setProjects])
 
   return (

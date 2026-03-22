@@ -1,38 +1,55 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
-import { 
-  ZoomIn, ZoomOut, Maximize2, Grid3X3, GitBranch, 
-  Plus, FileText, Lightbulb, BookMarked
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import {
+  ZoomIn, ZoomOut, Maximize2, Sparkles, Loader2,
+  Plus, FileText, Lightbulb, BookMarked,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useBuddyStore } from '@/lib/store'
 import type { CanvasNode, CanvasEdge } from '@/lib/types'
 
-const NODE_COLORS = {
-  section: 'bg-white border-primary/40',
-  concept: 'bg-pink-50 border-primary/30',
-  evidence: 'bg-green-50 border-accent/30',
+// ─── Visual config ─────────────────────────────────────────────────────────
+const NODE_R = { section: 13, concept: 8, evidence: 9 }
+const NODE_FILL = { section: '#d4547a', concept: '#7fabd4', evidence: '#3dab68' }
+const EDGE_COLORS: Record<string, string> = {
+  supports:    '#3dab68',
+  contradicts: '#d63e5a',
+  references:  '#94a3b8',
+  elaborates:  '#d4547a',
 }
 
-const NODE_ICONS = {
-  section: FileText,
-  concept: Lightbulb,
-  evidence: BookMarked
+const genId = () => Math.random().toString(36).substring(2, 15)
+
+// Extract a 2-word keyword label from paragraph text
+function shortLabel(text: string): string {
+  const STOP = new Set([
+    'the','a','an','and','or','but','in','on','at','to','for','of','with','by','from',
+    'is','are','was','were','be','been','have','has','had','that','this','these','those',
+    'it','its','we','they','our','their','as','not','which','who','also','can','such',
+    'study','research','found','shows','suggests','however','therefore','thus','while',
+    'more','most','other','both','each','many','some','may','might','would','could',
+    'should','will','use','used','using','based','about','than','then',
+  ])
+  const words = text
+    .replace(/[^a-zA-Z\s]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 3 && !STOP.has(w.toLowerCase()))
+  return words.slice(0, 2).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') || 'Paragraph'
 }
 
-const EDGE_COLORS = {
-  supports: 'stroke-edge-supports',
-  contradicts: 'stroke-edge-contradicts',
-  references: 'stroke-edge-references',
-  elaborates: 'stroke-edge-elaborates'
-}
+// ─── Force simulation constants ────────────────────────────────────────────
+const K_REPEL      = 5500
+const K_SPRING     = 0.038
+const IDEAL_STRUCT = 130
+const IDEAL_CROSS  = 230
+const K_CENTER     = 0.0025
+const DAMPING      = 0.8
+
+interface SimNode { x: number; y: number; vx: number; vy: number }
 
 interface NodeCanvasProps {
   onNodeDoubleClick?: (nodeId: string) => void
@@ -40,355 +57,289 @@ interface NodeCanvasProps {
 }
 
 export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasProps) {
-  const { getCurrentProject, updateNode, addNode, addEdge, selectSection, setViewMode } = useBuddyStore()
+  const { getCurrentProject, updateNode, addNode, selectSection, setViewMode, updateProject } = useBuddyStore()
   const project = getCurrentProject()
-  
-  const canvasRef = useRef<HTMLDivElement>(null)
-  const savedForcePositionsRef = useRef<Record<string, {x: number, y: number}>>({})
-  const [zoom, setZoom] = useState(isMiniMap ? 0.4 : 1)
-  const [pan, setPan] = useState({ x: 0, y: 0 })
+
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [zoom, setZoom] = useState(isMiniMap ? 0.35 : 0.9)
+  const [pan, setPan] = useState({ x: 400, y: 300 })
   const [isPanning, setIsPanning] = useState(false)
   const [panStart, setPanStart] = useState({ x: 0, y: 0 })
+  const [selectedNode, setSelectedNode] = useState<string | null>(null)
+  const [hoveredNode, setHoveredNode] = useState<string | null>(null)
   const [draggingNode, setDraggingNode] = useState<string | null>(null)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
-  const [selectedNode, setSelectedNode] = useState<string | null>(null)
-  const [layoutMode, setLayoutMode] = useState<'force' | 'hierarchical'>('hierarchical')
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [, forceUpdate] = useState(0)
+
+  const simRef = useRef<Map<string, SimNode>>(new Map())
+  const rafRef = useRef<number | null>(null)
+  const nodesRef     = useRef<CanvasNode[]>([])
+  const edgesRef     = useRef<CanvasEdge[]>([])
+  const updateNodeRef = useRef(updateNode)
 
   const nodes = project?.nodes || []
   const edges = project?.edges || []
 
-  // Force-directed layout simulation (Static solver)
-  const applyForceLayout = useCallback(() => {
-    if (!project || layoutMode !== 'force') return
-    
-    // Check if we have saved positions
-    const saved = savedForcePositionsRef.current
-    const updatedNodes = nodes.map(node => ({
-       ...node,
-       x: saved[node.id] ? saved[node.id].x : node.x,
-       y: saved[node.id] ? saved[node.id].y : node.y
-    }))
+  useEffect(() => { nodesRef.current     = nodes   }, [nodes])
+  useEffect(() => { edgesRef.current     = edges   }, [edges])
+  useEffect(() => { updateNodeRef.current = updateNode }, [updateNode])
 
-    const IDEAL_DISTANCE = 400
-    const centerX = 400
-    const centerY = 300
-    
-    // Run an invisible physics simulation to settle the graph
-    for (let i = 0; i < 200; i++) {
-      let maxMovement = 0
+  // Center pan on mount
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const { width, height } = el.getBoundingClientRect()
+    if (width > 0) setPan({ x: width / 2, y: height / 2 })
+  }, [])
 
-      updatedNodes.forEach((node, idx) => {
-        let fx = 0, fy = 0
-        
-        // Repulsion from other nodes
-        updatedNodes.forEach((other, otherIdx) => {
-          if (idx === otherIdx) return
-          let dx = node.x - other.x
-          let dy = node.y - other.y
-          if (dx === 0 && dy === 0) {
-            dx = Math.random() - 0.5
-            dy = Math.random() - 0.5
-          }
-          const distance = Math.max(Math.sqrt(dx * dx + dy * dy), 1)
-          
-          if (distance < IDEAL_DISTANCE) {
-            const force = 40000 / (distance * distance)
-            fx += (dx / distance) * force
-            fy += (dy / distance) * force
-          } else {
-            const force = 1000 / (distance * Math.max(distance, 1))
-            fx += (dx / distance) * force
-            fy += (dy / distance) * force
-          }
-        })
-        
-        // Attraction to connected nodes
-        edges.forEach(edge => {
-          if (edge.source === node.id || edge.target === node.id) {
-            const isSource = edge.source === node.id
-            const otherNode = updatedNodes.find(n => n.id === (isSource ? edge.target : edge.source))
-            if (!otherNode) return
-            
-            const dx = otherNode.x - node.x
-            const dy = otherNode.y - node.y
-            const distance = Math.max(Math.sqrt(dx * dx + dy * dy), 1)
-            
-            const force = (distance - IDEAL_DISTANCE * 0.8) * 0.05
-            fx += (dx / distance) * force
-            fy += (dy / distance) * force
-          }
-        })
-        
-        // Center gravity
-        fx += (centerX - node.x) * 0.005
-        fy += (centerY - node.y) * 0.005
-        
-        node.x += fx * 0.5
-        node.y += fy * 0.5
-        maxMovement = Math.max(maxMovement, Math.abs(fx * 0.5), Math.abs(fy * 0.5))
+  // Sync new nodes into simRef
+  useEffect(() => {
+    const sim = simRef.current
+    nodes.forEach(n => {
+      if (!sim.has(n.id)) sim.set(n.id, { x: n.x || 0, y: n.y || 0, vx: 0, vy: 0 })
+    })
+    const ids = new Set(nodes.map(n => n.id))
+    sim.forEach((_, id) => { if (!ids.has(id)) sim.delete(id) })
+  }, [nodes])
+
+  // ─── Simulation loop ──────────────────────────────────────────────────────
+  const runSimLoop = useCallback(() => {
+    const sim = simRef.current
+    const ns  = nodesRef.current
+    const es  = edgesRef.current
+    let maxV = 0
+
+    ns.forEach(n => {
+      const s = sim.get(n.id)
+      if (!s) return
+      let fx = 0, fy = 0
+
+      ns.forEach(o => {
+        if (o.id === n.id) return
+        const os = sim.get(o.id)
+        if (!os) return
+        let dx = s.x - os.x, dy = s.y - os.y
+        const d2 = dx * dx + dy * dy
+        if (d2 < 0.01) { dx = (Math.random() - 0.5) * 2; dy = (Math.random() - 0.5) * 2 }
+        const d = Math.sqrt(Math.max(d2, 0.01))
+        fx += (dx / d) * K_REPEL / Math.max(d2, 100)
+        fy += (dy / d) * K_REPEL / Math.max(d2, 100)
       })
 
-      if (maxMovement < 0.5) break // Settled early
-    }
-    
-    // Save back to Zustand
-    updatedNodes.forEach(node => {
-      const original = nodes.find(n => n.id === node.id)
-      if (original && (Math.abs(original.x - node.x) > 2 || Math.abs(original.y - node.y) > 2)) {
-        updateNode(node.id, { x: node.x, y: node.y })
-      }
+      es.forEach(edge => {
+        const otherId = edge.source === n.id ? edge.target : edge.target === n.id ? edge.source : null
+        if (!otherId) return
+        const os = sim.get(otherId)
+        if (!os) return
+        const dx = os.x - s.x, dy = os.y - s.y
+        const d = Math.max(Math.sqrt(dx * dx + dy * dy), 1)
+        const ideal = edge.label === 'elaborates' ? IDEAL_STRUCT : IDEAL_CROSS
+        const f = (d - ideal) * K_SPRING
+        fx += (dx / d) * f; fy += (dy / d) * f
+      })
+
+      fx += -s.x * K_CENTER; fy += -s.y * K_CENTER
+
+      s.vx = (s.vx + fx) * DAMPING
+      s.vy = (s.vy + fy) * DAMPING
+      s.x += s.vx; s.y += s.vy
+      maxV = Math.max(maxV, Math.abs(s.vx), Math.abs(s.vy))
     })
-  }, [project, nodes, edges, updateNode, layoutMode])
+
+    forceUpdate(t => t + 1)
+
+    if (maxV > 0.25) {
+      rafRef.current = requestAnimationFrame(runSimLoop)
+    } else {
+      sim.forEach((sn, id) => {
+        const node = nodesRef.current.find(n => n.id === id)
+        if (node && (Math.abs(node.x - sn.x) > 2 || Math.abs(node.y - sn.y) > 2)) {
+          updateNodeRef.current(id, { x: Math.round(sn.x), y: Math.round(sn.y) })
+        }
+      })
+    }
+  }, [])
+
+  const startSim = useCallback(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(runSimLoop)
+  }, [runSimLoop])
 
   useEffect(() => {
-    if (layoutMode === 'force') {
-      applyForceLayout()
-    }
-  }, [nodes.length, edges.length, layoutMode])
+    if (nodes.length > 1) startSim()
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes.length, edges.length])
 
-  const applyHierarchicalLayout = useCallback(() => {
+  // ─── Live outline content ─────────────────────────────────────────────────
+  const getSectionParagraphs = useCallback((sectionId: string): string[] => {
+    if (!project) return []
+    const section =
+      project.outline.introduction.id === sectionId ? project.outline.introduction :
+      project.outline.conclusion.id   === sectionId ? project.outline.conclusion :
+      project.outline.body.find(s => s.id === sectionId)
+    if (!section?.content?.trim()) return []
+    return section.content.trim().split(/\n\n+/).map(p => p.trim()).filter(p => p.length > 15)
+  }, [project])
+
+  const liveNodeIds = useMemo(() => {
+    const valid = new Set<string>()
+    nodes.forEach(node => {
+      if (node.data?.paragraphIndex === undefined) { valid.add(node.id); return }
+      const paras = getSectionParagraphs(node.sectionId!)
+      if (node.data.paragraphIndex < paras.length) valid.add(node.id)
+    })
+    return valid
+  }, [nodes, getSectionParagraphs])
+
+  // ─── Generate nodes + AI connections ─────────────────────────────────────
+  const generateAndAnalyze = useCallback(async () => {
     if (!project) return
+    setIsAnalyzing(true)
+    try {
+      const allSections = [project.outline.introduction, ...project.outline.body, project.outline.conclusion]
+      const newNodes: CanvasNode[] = []
+      const paragraphItems: Array<{
+        id: string; sectionId: string; sectionTitle: string; paragraphIndex: number; content: string
+      }> = []
 
-    const NODE_W = 200
-    const NODE_H = 60
-    const COL_X = 500
-    const ROW_GAP = NODE_H + 60 // 120px between section rows
-
-    const sectionNodes = nodes.filter(n => n.type === 'section')
-    const otherNodes   = nodes.filter(n => n.type !== 'section')
-
-    // Place section nodes in a centered vertical column
-    sectionNodes.forEach((node, idx) => {
-      updateNode(node.id, { x: COL_X, y: 80 + idx * ROW_GAP })
-    })
-
-    // Place concept/evidence nodes alternating left/right, aligned to nearest section
-    otherNodes.forEach((node, idx) => {
-      const sectionIdx = Math.min(Math.floor(idx / 2), sectionNodes.length - 1)
-      const side = idx % 2 === 0 ? -1 : 1
-      const baseY = sectionNodes[sectionIdx]
-        ? 80 + sectionIdx * ROW_GAP
-        : 80 + idx * (NODE_H + 40)
-      updateNode(node.id, {
-        x: COL_X + side * (NODE_W + 80),
-        y: baseY,
+      allSections.forEach(section => {
+        newNodes.push({ id: section.id, type: 'section', label: section.title, x: 0, y: 0, sectionId: section.id, location: section.title })
+        const content = section.content?.trim()
+        if (!content) return
+        const paragraphs = content.split(/\n\n+/).map(p => p.trim()).filter(p => p.length > 15)
+        paragraphs.forEach((para, paraIdx) => {
+          const paraId = `${section.id}-p${paraIdx}`
+          newNodes.push({
+            id: paraId, type: 'concept',
+            label: shortLabel(para),
+            x: 0, y: 0, sectionId: section.id,
+            location: `${section.title} · Para ${paraIdx + 1}`,
+            data: { content: para, paragraphIndex: paraIdx },
+          })
+          paragraphItems.push({ id: paraId, sectionId: section.id, sectionTitle: section.title, paragraphIndex: paraIdx, content: para })
+        })
       })
-    })
-  }, [project, nodes, updateNode])
 
+      const structuralEdges: CanvasEdge[] = []
+      newNodes.forEach(node => {
+        if (node.data?.paragraphIndex !== undefined && node.sectionId) {
+          structuralEdges.push({ id: genId(), source: node.sectionId, target: node.id, label: 'elaborates' })
+        }
+      })
+
+      let crossEdges: CanvasEdge[] = []
+      try {
+        const res = await fetch('/api/analyze-connections', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paragraphs: paragraphItems }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          if (Array.isArray(data) && data.length > 0) {
+            crossEdges = data.map((e: any) => ({
+              id: genId(), source: e.source, target: e.target,
+              label: e.label || 'references', description: e.description,
+            }))
+          }
+        }
+      } catch (e) { console.warn('HuggingFace failed, using keyword fallback:', e) }
+
+      if (crossEdges.length === 0 && paragraphItems.length >= 2) {
+        const STOP = new Set(['the','a','an','and','or','but','in','on','at','to','for','of','with','by','from','is','are','was','were','be','been','have','has','had','do','does','did','will','would','could','should','may','might','that','this','these','those','it','its','we','they','our','their','as','not','no','which','who','what','when','where','how','all','each','both','more','most','other','into','through','during','before','after','also','can','such','than','then','used','using','based'])
+        const getKw = (t: string) => new Set(t.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 3 && !STOP.has(w)))
+        const overlap = (a: Set<string>, b: Set<string>) => { let n = 0; a.forEach(w => { if (b.has(w)) n++ }); return n / Math.max(Math.min(a.size, b.size), 1) }
+        const sharedDesc = (a: Set<string>, b: Set<string>) => { const s = [...a].filter(w => b.has(w)).slice(0, 4); return s.length ? `Shared: ${s.join(', ')}` : 'Related concepts' }
+        const kw = paragraphItems.map(p => getKw(p.content))
+        const scored: { score: number; src: string; tgt: string; desc: string }[] = []
+        paragraphItems.forEach((src, i) => paragraphItems.forEach((tgt, j) => {
+          if (i >= j || src.sectionId === tgt.sectionId) return
+          const score = overlap(kw[i], kw[j])
+          if (score >= 0.12) scored.push({ score, src: src.id, tgt: tgt.id, desc: sharedDesc(kw[i], kw[j]) })
+        }))
+        scored.sort((a, b) => b.score - a.score)
+        scored.slice(0, 8).forEach(({ src, tgt, score, desc }) => {
+          const label: CanvasEdge['label'] = score >= 0.35 ? 'supports' : score >= 0.2 ? 'elaborates' : 'references'
+          crossEdges.push({ id: genId(), source: src, target: tgt, label, description: desc })
+        })
+      }
+
+      newNodes.forEach((n, i) => {
+        const angle = (2 * Math.PI * i) / newNodes.length
+        const r = 160 + Math.random() * 50
+        n.x = Math.cos(angle) * r
+        n.y = Math.sin(angle) * r
+      })
+
+      const newSim = new Map<string, SimNode>()
+      newNodes.forEach(n => newSim.set(n.id, { x: n.x, y: n.y, vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4 }))
+      simRef.current = newSim
+
+      updateProject(project.id, { nodes: newNodes, edges: [...structuralEdges, ...crossEdges] })
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }, [project, updateProject])
+
+  // ─── Interaction handlers ─────────────────────────────────────────────────
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault()
-    const delta = e.deltaY > 0 ? 0.9 : 1.1
-    setZoom(z => Math.min(Math.max(z * delta, 0.25), 3))
+    setZoom(z => Math.min(Math.max(z * (e.deltaY > 0 ? 0.9 : 1.1), 0.15), 4))
   }, [])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.target === canvasRef.current) {
-      setIsPanning(true)
-      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
-      setSelectedNode(null)
-    }
+    if ((e.target as Element).closest('[data-node]')) return
+    setIsPanning(true)
+    setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
+    setSelectedNode(null)
   }, [pan])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (isPanning) {
-      setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y })
-    }
+    if (isPanning) setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y })
     if (draggingNode) {
-      const rect = canvasRef.current?.getBoundingClientRect()
+      const rect = containerRef.current?.getBoundingClientRect()
       if (rect) {
-        const x = (e.clientX - rect.left - pan.x) / zoom - dragOffset.x
-        const y = (e.clientY - rect.top - pan.y) / zoom - dragOffset.y
-        updateNode(draggingNode, { x, y })
+        const wx = (e.clientX - rect.left - pan.x) / zoom
+        const wy = (e.clientY - rect.top  - pan.y) / zoom
+        const s = simRef.current.get(draggingNode)
+        if (s) { s.x = wx - dragOffset.x; s.y = wy - dragOffset.y; s.vx = 0; s.vy = 0 }
+        forceUpdate(t => t + 1)
       }
     }
-  }, [isPanning, panStart, draggingNode, dragOffset, pan, zoom, updateNode])
+  }, [isPanning, panStart, draggingNode, dragOffset, pan, zoom])
 
   const handleMouseUp = useCallback(() => {
     setIsPanning(false)
+    if (draggingNode) startSim()
     setDraggingNode(null)
-  }, [])
+  }, [draggingNode, startSim])
 
-  const handleNodeMouseDown = useCallback((e: React.MouseEvent, nodeId: string, node: CanvasNode) => {
+  const handleNodeMouseDown = useCallback((e: React.MouseEvent, nodeId: string) => {
     e.stopPropagation()
-    const rect = canvasRef.current?.getBoundingClientRect()
-    if (rect) {
-      const mouseX = (e.clientX - rect.left - pan.x) / zoom
-      const mouseY = (e.clientY - rect.top - pan.y) / zoom
-      setDragOffset({ x: mouseX - node.x, y: mouseY - node.y })
+    const rect = containerRef.current?.getBoundingClientRect()
+    const s = simRef.current.get(nodeId)
+    if (rect && s) {
+      setDragOffset({
+        x: (e.clientX - rect.left - pan.x) / zoom - s.x,
+        y: (e.clientY - rect.top  - pan.y) / zoom - s.y,
+      })
     }
     setDraggingNode(nodeId)
     setSelectedNode(nodeId)
   }, [pan, zoom])
 
   const handleNodeDoubleClick = useCallback((nodeId: string, node: CanvasNode) => {
-    if (node.sectionId) {
-      selectSection(node.sectionId)
-      setViewMode('writing')
-    }
+    if (node.sectionId) { selectSection(node.sectionId); setViewMode('writing') }
     onNodeDoubleClick?.(nodeId)
   }, [selectSection, setViewMode, onNodeDoubleClick])
 
   const addNewNode = (type: CanvasNode['type']) => {
-    const newNode: CanvasNode = {
-      id: Math.random().toString(36).substring(2, 15),
-      type,
-      label: type === 'section' ? 'New Section' : type === 'concept' ? 'New Concept' : 'New Evidence',
-      x: 300 + Math.random() * 200,
-      y: 200 + Math.random() * 200
-    }
-    addNode(newNode)
-  }
-
-  const resetView = () => {
-    setZoom(1)
-    setPan({ x: 0, y: 0 })
-  }
-
-  const getNodeInfo = (node: CanvasNode) => {
-    let sectionContent = node.data?.content
-    if (node.type === 'section' && node.sectionId && project) {
-      if (project.outline.introduction.id === node.sectionId) sectionContent = project.outline.introduction.content
-      else if (project.outline.conclusion.id === node.sectionId) sectionContent = project.outline.conclusion.content
-      else {
-        const bodySection = project.outline.body.find(s => s.id === node.sectionId)
-        if (bodySection) sectionContent = bodySection.content
-      }
-    }
-    const hasContent = !!(sectionContent && sectionContent.trim().length > 0)
-    return {
-      width: hasContent ? 280 : 160,
-      height: hasContent ? 140 : 44,
-      hasContent,
-      sectionContent
-    }
-  }
-
-  const renderEdge = (edge: CanvasEdge) => {
-    const sourceNode = nodes.find(n => n.id === edge.source)
-    const targetNode = nodes.find(n => n.id === edge.target)
-    if (!sourceNode || !targetNode) return null
-
-    const sourceInfo = getNodeInfo(sourceNode)
-    const targetInfo = getNodeInfo(targetNode)
-
-    const x1 = sourceNode.x + (sourceInfo.width / 2)
-    const y1 = sourceNode.y + (sourceInfo.height / 2)
-    const x2 = targetNode.x + (targetInfo.width / 2)
-    const y2 = targetNode.y + (targetInfo.height / 2)
-
-    const midX = (x1 + x2) / 2
-    const midY = (y1 + y2) / 2
-
-    return (
-      <g key={edge.id}>
-        <line
-          x1={x1} y1={y1} x2={x2} y2={y2}
-          className={`${EDGE_COLORS[edge.label]} opacity-60`}
-          strokeWidth={2}
-          strokeDasharray={edge.label === 'contradicts' ? '6,4' : undefined}
-          markerEnd="url(#arrowhead)"
-        />
-        <text
-          x={midX} y={midY - 8}
-          textAnchor="middle"
-          fontSize="10"
-          className="fill-muted-foreground"
-          opacity="0.8"
-        >
-          {edge.label}
-        </text>
-      </g>
-    )
-  }
-
-  const renderNode = (node: CanvasNode) => {
-    const Icon = NODE_ICONS[node.type]
-    const isSelected = selectedNode === node.id
-    
-    const { width, height, hasContent, sectionContent } = getNodeInfo(node)
-
-    if (!hasContent) {
-      return (
-        <div
-          key={node.id}
-          className={`
-            absolute cursor-move select-none
-            px-3 py-2 rounded-full border-2
-            transition-shadow duration-200 flex items-center gap-2
-            ${NODE_COLORS[node.type]}
-            ${isSelected ? 'ring-2 ring-primary shadow-lg scale-[1.02]' : 'hover:shadow-md hover:scale-[1.01]'}
-          `}
-          style={{
-            left: node.x,
-            top: node.y,
-            width,
-            height,
-          }}
-          onMouseDown={(e) => handleNodeMouseDown(e, node.id, node)}
-          onDoubleClick={() => handleNodeDoubleClick(node.id, node)}
-        >
-          <Icon className="h-4 w-4 text-foreground/80 flex-shrink-0" />
-          <span className="text-sm font-medium text-foreground truncate flex-1">
-            {node.label}
-          </span>
-          {node.data?.importance && (
-            <div className={`
-              text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0
-              ${node.data.importance === 'high' ? 'bg-destructive/20 text-destructive' : 
-                node.data.importance === 'medium' ? 'bg-primary/20 text-primary' : 
-                'bg-muted text-muted-foreground'}
-            `}>
-              {node.data.importance}
-            </div>
-          )}
-        </div>
-      )
-    }
-
-    return (
-      <div
-        key={node.id}
-        className={`
-          absolute cursor-move select-none
-          p-4 rounded-xl border-2 overflow-hidden
-          transition-shadow duration-200
-          flex flex-col
-          ${NODE_COLORS[node.type]}
-          ${isSelected ? 'ring-2 ring-primary shadow-xl scale-[1.02]' : 'hover:shadow-lg hover:scale-[1.01]'}
-        `}
-        style={{
-          left: node.x,
-          top: node.y,
-          width,
-          height,
-        }}
-        onMouseDown={(e) => handleNodeMouseDown(e, node.id, node)}
-        onDoubleClick={() => handleNodeDoubleClick(node.id, node)}
-      >
-        <div className="flex items-center justify-between mb-3 border-b border-foreground/10 pb-2">
-          <div className="flex items-center gap-2 overflow-hidden">
-            <Icon className="h-4 w-4 text-foreground/80 flex-shrink-0" />
-            <span className="text-sm font-semibold text-foreground truncate">
-              {node.label}
-            </span>
-          </div>
-          {node.data?.importance && (
-            <div className={`
-              text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0
-              ${node.data.importance === 'high' ? 'bg-destructive/20 text-destructive' : 
-                node.data.importance === 'medium' ? 'bg-primary/20 text-primary' : 
-                'bg-muted text-muted-foreground'}
-            `}>
-              {node.data.importance}
-            </div>
-          )}
-        </div>
-        <div className="text-xs text-muted-foreground line-clamp-4 leading-relaxed whitespace-pre-wrap flex-1">
-          {sectionContent ? sectionContent : <span className="italic opacity-60">No content yet...</span>}
-        </div>
-      </div>
-    )
+    const id = genId()
+    addNode({ id, type, label: type === 'section' ? 'New Section' : type === 'concept' ? 'New Concept' : 'New Evidence', x: 0, y: 0 })
+    simRef.current.set(id, { x: (Math.random() - 0.5) * 200, y: (Math.random() - 0.5) * 200, vx: 0, vy: 0 })
+    startSim()
   }
 
   if (!project) {
@@ -400,95 +351,67 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
     )
   }
 
+  const hasSectionContent = [project.outline.introduction, ...project.outline.body, project.outline.conclusion].some(s => s.content?.trim())
+
+  // Tooltip: hovered takes priority, falls back to selected (info stays on click)
+  const tooltipNodeId   = hoveredNode ?? selectedNode
+  const tooltipNodeData = tooltipNodeId ? nodes.find(n => n.id === tooltipNodeId) : null
+  const tooltipSim      = tooltipNodeId ? simRef.current.get(tooltipNodeId) : null
+  const tooltipIsPara   = tooltipNodeData?.data?.paragraphIndex !== undefined
+  const tooltipContent  = tooltipIsPara && tooltipNodeData?.sectionId
+    ? getSectionParagraphs(tooltipNodeData.sectionId)[tooltipNodeData.data!.paragraphIndex!]
+    : null
+
   return (
     <div className={`flex-1 flex flex-col overflow-hidden ${isMiniMap ? 'bg-transparent' : 'bg-canvas-bg'}`}>
-      {/* Canvas Toolbar */}
+      {/* Toolbar */}
       {!isMiniMap && (
-        <div className="h-12 border-b border-border bg-card/50 flex items-center justify-between px-4">
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                <Plus className="h-4 w-4" />
-                Add Node
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => addNewNode('section')}>
-                <FileText className="h-4 w-4 mr-2" />
-                Section Node
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => addNewNode('concept')}>
-                <Lightbulb className="h-4 w-4 mr-2" />
-                Concept Node
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => addNewNode('evidence')}>
-                <BookMarked className="h-4 w-4 mr-2" />
-                Evidence Node
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        <div className="h-12 border-b border-border bg-card/50 flex items-center justify-between px-4 shrink-0">
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2"><Plus className="h-4 w-4" />Add Node</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => addNewNode('section')}><FileText   className="h-4 w-4 mr-2" /> Section</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => addNewNode('concept')}><Lightbulb  className="h-4 w-4 mr-2" /> Concept</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => addNewNode('evidence')}><BookMarked className="h-4 w-4 mr-2" /> Evidence</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-          <div className="h-4 w-px bg-border" />
+            <div className="h-4 w-px bg-border" />
 
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              if (layoutMode === 'force') {
-                // Save current positions before switching to hierarchical
-                const positions: Record<string, {x: number, y: number}> = {}
-                nodes.forEach(n => positions[n.id] = { x: n.x, y: n.y })
-                savedForcePositionsRef.current = positions
-                setLayoutMode('hierarchical')
-                applyHierarchicalLayout()
-              } else {
-                setLayoutMode('force')
-                const saved = savedForcePositionsRef.current
-                if (Object.keys(saved).length > 0) {
-                  nodes.forEach(n => {
-                    if (saved[n.id]) updateNode(n.id, { x: saved[n.id].x, y: saved[n.id].y })
-                  })
-                }
-              }
-            }}
-            className="gap-2"
-          >
-            {layoutMode === 'force' ? (
-              <>
-                <Grid3X3 className="h-4 w-4" />
-                <span className="hidden sm:inline">Hierarchical</span>
-              </>
-            ) : (
-              <>
-                <GitBranch className="h-4 w-4" />
-                <span className="hidden sm:inline">Force</span>
-              </>
-            )}
-          </Button>
+            <Button
+              variant="default" size="sm" className="gap-2"
+              disabled={isAnalyzing || !hasSectionContent}
+              onClick={generateAndAnalyze}
+              title={!hasSectionContent ? 'Write content in sections first' : 'Generate paragraph nodes and find connections'}
+            >
+              {isAnalyzing
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Analyzing…</>
+                : <><Sparkles className="h-4 w-4" /> Analyze Connections</>}
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" onClick={() => setZoom(z => Math.min(z * 1.2, 4))}><ZoomIn  className="h-4 w-4" /></Button>
+            <span className="text-xs text-muted-foreground w-12 text-center">{Math.round(zoom * 100)}%</span>
+            <Button variant="ghost" size="icon" onClick={() => setZoom(z => Math.max(z * 0.8, 0.15))}><ZoomOut className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" onClick={() => {
+              setZoom(0.9)
+              const el = containerRef.current
+              if (el) { const { width, height } = el.getBoundingClientRect(); setPan({ x: width / 2, y: height / 2 }) }
+            }}>
+              <Maximize2 className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
-
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={() => setZoom(z => Math.min(z * 1.2, 3))}>
-            <ZoomIn className="h-4 w-4" />
-          </Button>
-          <span className="text-xs text-muted-foreground w-12 text-center">
-            {Math.round(zoom * 100)}%
-          </span>
-          <Button variant="ghost" size="icon" onClick={() => setZoom(z => Math.max(z * 0.8, 0.25))}>
-            <ZoomOut className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={resetView}>
-            <Maximize2 className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
       )}
 
-      {/* Canvas Area */}
+      {/* Canvas */}
       <div
-        ref={canvasRef}
-        className={`flex-1 relative overflow-hidden ${isMiniMap ? '' : 'cursor-grab active:cursor-grabbing'}`}
+        ref={containerRef}
+        className={`flex-1 relative overflow-hidden select-none ${isMiniMap ? '' : 'cursor-grab active:cursor-grabbing'}`}
         onWheel={isMiniMap ? undefined : handleWheel}
         onMouseDown={isMiniMap ? undefined : handleMouseDown}
         onMouseMove={isMiniMap ? undefined : handleMouseMove}
@@ -496,61 +419,172 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
         onMouseLeave={isMiniMap ? undefined : handleMouseUp}
         style={{
           backgroundImage: isMiniMap ? undefined : `radial-gradient(circle, var(--canvas-grid) 1px, transparent 1px)`,
-          backgroundSize: `${20 * zoom}px ${20 * zoom}px`,
-          backgroundPosition: `${pan.x}px ${pan.y}px`
+          backgroundSize:     `${20 * zoom}px ${20 * zoom}px`,
+          backgroundPosition: `${pan.x}px ${pan.y}px`,
         }}
       >
-        <div
-          style={{
-            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-            transformOrigin: '0 0',
-            position: 'relative',
-          }}
-        >
-          {/* Edges — zero-size SVG with overflow:visible shares node coordinate space */}
-          <svg
-            style={{ position: 'absolute', left: 0, top: 0, width: 0, height: 0, overflow: 'visible' }}
-            className="pointer-events-none"
-          >
-            <defs>
-              <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-                <polygon points="0 0, 8 3, 0 6" fill="#94a3b8" opacity="0.7" />
+        {/* SVG — edges + nodes */}
+        <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', overflow: 'visible' }}>
+          <defs>
+            {Object.entries(EDGE_COLORS).map(([label, color]) => (
+              <marker key={label} id={`arrow-${label}`} markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill={color} opacity="0.9" />
               </marker>
-            </defs>
-            {edges.map(renderEdge)}
-          </svg>
+            ))}
+          </defs>
 
-          {/* Nodes Layer */}
-          {nodes.map(renderNode)}
-        </div>
+          <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
+            {/* Edges */}
+            {edges.map(edge => {
+              if (!liveNodeIds.has(edge.source) || !liveNodeIds.has(edge.target)) return null
+              const ss = simRef.current.get(edge.source)
+              const ts = simRef.current.get(edge.target)
+              if (!ss || !ts) return null
+              const color    = EDGE_COLORS[edge.label] ?? '#94a3b8'
+              const isActive = tooltipNodeId === edge.source || tooltipNodeId === edge.target
+              const dx = ts.x - ss.x, dy = ts.y - ss.y
+              const mx = (ss.x + ts.x) / 2 - dy * 0.15
+              const my = (ss.y + ts.y) / 2 + dx * 0.15
+              return (
+                <g key={edge.id} opacity={isActive ? 1 : 0.12} style={{ transition: 'opacity 0.2s' }}>
+                  <path
+                    d={`M ${ss.x} ${ss.y} Q ${mx} ${my} ${ts.x} ${ts.y}`}
+                    fill="none" stroke={color}
+                    strokeWidth={isActive ? 2 : 1.5}
+                    strokeDasharray={edge.label === 'contradicts' ? '5,3' : undefined}
+                    markerEnd={`url(#arrow-${edge.label})`}
+                  />
+                </g>
+              )
+            })}
 
-        {/* Legend */}
-        {!isMiniMap && (
-          <div className="absolute bottom-4 left-4 p-3 rounded-lg bg-card/80 backdrop-blur-sm border border-border">
-            <p className="text-xs font-medium mb-2 text-muted-foreground">Node Types</p>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-3 h-3 rounded bg-node-section" />
-                <span>Section</span>
+            {/* Nodes */}
+            {nodes.map(node => {
+              if (!liveNodeIds.has(node.id)) return null
+              const s = simRef.current.get(node.id)
+              if (!s) return null
+              const isPara     = node.data?.paragraphIndex !== undefined
+              const r          = isPara ? NODE_R.concept : NODE_R.section
+              const fill       = NODE_FILL[node.type]
+              const isSelected = selectedNode === node.id
+              const isHovered  = hoveredNode  === node.id
+
+              return (
+                <g
+                  key={node.id}
+                  data-node="true"
+                  style={{ cursor: 'grab' }}
+                  onMouseDown={e => handleNodeMouseDown(e, node.id)}
+                  onDoubleClick={() => handleNodeDoubleClick(node.id, node)}
+                  onMouseEnter={() => setHoveredNode(node.id)}
+                  onMouseLeave={() => setHoveredNode(null)}
+                >
+                  {(isHovered || isSelected) && (
+                    <circle cx={s.x} cy={s.y} r={r + 6} fill={fill} opacity="0.2" />
+                  )}
+                  <circle
+                    cx={s.x} cy={s.y} r={r}
+                    fill={fill}
+                    stroke="white"
+                    strokeWidth={isSelected ? 2.5 : isHovered ? 1.5 : 0}
+                    opacity="0.93"
+                  />
+                  <text
+                    x={s.x + r + 6} y={s.y + 4}
+                    fontSize={isPara ? 10 : 12}
+                    fontWeight={isPara ? '400' : '600'}
+                    fill={isPara ? '#555' : '#222'}
+                    style={{ paintOrder: 'stroke', stroke: 'rgba(245,244,240,0.85)', strokeWidth: 3, userSelect: 'none' } as React.CSSProperties}
+                  >
+                    {node.label}
+                  </text>
+                </g>
+              )
+            })}
+          </g>
+        </svg>
+
+        {/* Hover / click tooltip */}
+        {tooltipIsPara && tooltipNodeData && tooltipSim && (() => {
+          const connectedEdges = edges.filter(e =>
+            (e.source === tooltipNodeData.id || e.target === tooltipNodeData.id) && e.description
+          )
+          return (
+            <div
+              className="absolute pointer-events-none z-20"
+              style={{
+                left: tooltipSim.x * zoom + pan.x + NODE_R.concept * zoom + 12,
+                top:  tooltipSim.y * zoom + pan.y - 24,
+                maxWidth: 280,
+              }}
+            >
+              <div className="bg-card/95 backdrop-blur-sm border border-border rounded-xl p-3 shadow-xl space-y-2">
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-primary/70 mb-1">
+                    {tooltipNodeData.location}
+                  </p>
+                  <p className="text-xs text-foreground/80 leading-relaxed line-clamp-4">
+                    {tooltipContent || tooltipNodeData.label}
+                  </p>
+                </div>
+                {connectedEdges.length > 0 && (
+                  <div className="border-t border-border/50 pt-2 space-y-1.5">
+                    {connectedEdges.slice(0, 3).map(e => {
+                      const otherId   = e.source === tooltipNodeData.id ? e.target : e.source
+                      const otherNode = nodes.find(n => n.id === otherId)
+                      return (
+                        <div key={e.id} className="flex items-start gap-1.5">
+                          <div className="w-1.5 h-1.5 rounded-full mt-1 shrink-0" style={{ backgroundColor: EDGE_COLORS[e.label] }} />
+                          <div>
+                            <p className="text-[10px] font-semibold text-foreground/70 leading-none mb-0.5">
+                              {otherNode?.location ?? otherNode?.label ?? 'Unknown'}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground leading-snug">{e.description}</p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-3 h-3 rounded bg-node-concept" />
-                <span>Concept</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-3 h-3 rounded bg-node-evidence" />
-                <span>Evidence</span>
-              </div>
+            </div>
+          )
+        })()}
+
+        {/* Empty state */}
+        {nodes.length === 0 && !isMiniMap && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
+            <p className="text-muted-foreground text-sm">No nodes yet.</p>
+            <p className="text-muted-foreground/60 text-xs">Write content in your sections, then click <strong>Analyze Connections</strong>.</p>
+          </div>
+        )}
+
+        {nodes.length > 0 && nodes.every(n => n.data?.paragraphIndex === undefined) && hasSectionContent && !isMiniMap && (
+          <div className="absolute bottom-16 left-1/2 -translate-x-1/2 pointer-events-none">
+            <div className="px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-xs text-primary">
+              Click <strong>Analyze Connections</strong> to map your paragraphs
             </div>
           </div>
         )}
 
-        {/* Instructions */}
+        {/* Legend */}
+        {!isMiniMap && (
+          <div className="absolute bottom-4 left-4 p-3 rounded-lg bg-card/80 backdrop-blur-sm border border-border">
+            <p className="text-xs font-medium mb-2 text-muted-foreground">Connections</p>
+            <div className="space-y-1">
+              {Object.entries(EDGE_COLORS).map(([label, color]) => (
+                <div key={label} className="flex items-center gap-2 text-xs">
+                  <div className="w-6 h-0.5 rounded" style={{ backgroundColor: color }} />
+                  <span className="capitalize text-muted-foreground">{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {!isMiniMap && (
           <div className="absolute bottom-4 right-4 p-2 rounded-lg bg-card/60 backdrop-blur-sm border border-border">
-            <p className="text-[10px] text-muted-foreground">
-              Double-click a section to open editor
-            </p>
+            <p className="text-[10px] text-muted-foreground">Double-click a node to open editor</p>
           </div>
         )}
       </div>

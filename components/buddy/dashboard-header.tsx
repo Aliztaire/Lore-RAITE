@@ -1,6 +1,6 @@
 'use client'
 
-import { BookOpen, LayoutGrid, PenTool, Download, Sparkles, Plus } from 'lucide-react'
+import { BookOpen, LayoutGrid, PenTool, Download, Sparkles, Library, TestTube2, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ProjectSwitcher } from './project-switcher'
 import { UserProfile } from './user-profile'
@@ -20,6 +20,8 @@ export function DashboardHeader({ onExport, showProjectActions = true }: Dashboa
     { mode: 'dashboard', label: 'Dashboard', icon: <LayoutGrid className="h-4 w-4" /> },
     { mode: 'canvas', label: 'Canvas', icon: <Sparkles className="h-4 w-4" /> },
     { mode: 'writing', label: 'Writing', icon: <PenTool className="h-4 w-4" /> },
+    { mode: 'analyzer', label: 'Stats', icon: <TestTube2 className="h-4 w-4" /> },
+    { mode: 'literature', label: 'Lit Gap', icon: <Library className="h-4 w-4" /> },
   ]
 
   return (
@@ -38,46 +40,45 @@ export function DashboardHeader({ onExport, showProjectActions = true }: Dashboa
         )}
       </div>
 
-      {project && showProjectActions && (
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={() => setShowOnboarding(true)}
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">New Project</span>
-          </Button>
+      <div className="flex items-center gap-2 ml-auto">
+        {project && showProjectActions && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => setShowOnboarding(true)}
+            >
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">New Project</span>
+            </Button>
 
-          <div className="flex items-center bg-secondary rounded-lg p-1">
-            {viewModes.map(({ mode, label, icon }) => (
-              <Button
-                key={mode}
-                variant={viewMode === mode ? 'default' : 'ghost'}
-                size="sm"
-                className={`gap-2 ${viewMode === mode ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                onClick={() => setViewMode(mode)}
-              >
-                {icon}
-                <span className="hidden sm:inline">{label}</span>
-              </Button>
-            ))}
-          </div>
+            <div className="flex items-center bg-secondary rounded-lg p-1">
+              {viewModes.map(({ mode, label, icon }) => (
+                <Button
+                  key={mode}
+                  variant={viewMode === mode ? 'default' : 'ghost'}
+                  size="sm"
+                  className={`gap-2 ${viewMode === mode ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => setViewMode(mode)}
+                >
+                  {icon}
+                  <span className="hidden sm:inline">{label}</span>
+                </Button>
+              ))}
+            </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={onExport}
-          >
-            <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Export</span>
-          </Button>
-        </div>
-      )}
-
-      <div className="flex items-center ml-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={onExport}
+            >
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Export</span>
+            </Button>
+          </>
+        )}
         <UserProfile />
       </div>
     </header>
