@@ -34,8 +34,13 @@ export interface Reference {
   authors: string[]
   year: string
   type: 'article' | 'book' | 'website' | 'other'
-  citation: string
-  notes: string
+  citation: string // Full APA 7 formatted citation string
+  doi?: string // DOI URL for external link
+  journal?: string // Journal / source name
+  volume?: string
+  issue?: string
+  pages?: string
+  notes: string // Abstract preview
 }
 
 export interface CanvasNode {
