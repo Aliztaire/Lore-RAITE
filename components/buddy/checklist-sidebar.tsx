@@ -1,10 +1,25 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Check, ChevronRight, BookOpen, FileText, Plus, Pencil, Trash2, X, GripVertical } from 'lucide-react'
+import { Check, ChevronRight, BookOpen, FileText, Plus, Pencil, Trash2, X, GripVertical, BookMarked } from 'lucide-react'
 import { useBuddyStore } from '@/lib/store'
 import type { OutlineSection } from '@/lib/types'
 import { cn } from '@/lib/utils'
+
+function lerpColor(a: string, b: string, t: number) {
+  const ah = a.replace('#', '')
+  const bh = b.replace('#', '')
+  const ar = parseInt(ah.slice(0, 2), 16)
+  const ag = parseInt(ah.slice(2, 4), 16)
+  const ab = parseInt(ah.slice(4, 6), 16)
+  const br = parseInt(bh.slice(0, 2), 16)
+  const bg = parseInt(bh.slice(2, 4), 16)
+  const bb = parseInt(bh.slice(4, 6), 16)
+  const rr = Math.round(ar + (br - ar) * t)
+  const gg = Math.round(ag + (bg - ag) * t)
+  const bb2 = Math.round(ab + (bb - ab) * t)
+  return `rgb(${rr},${gg},${bb2})`
+}
 
 function RingProgress({ completed, total }: { completed: number; total: number }) {
   const r = 32
@@ -14,7 +29,9 @@ function RingProgress({ completed, total }: { completed: number; total: number }
   const pct = total === 0 ? 0 : completed / total
   const offset = circ * (1 - pct)
   const displayPct = Math.round(pct * 100)
-  const color = '#d4547a'
+  const color = pct <= 0.5
+    ? lerpColor('#ffce5d', '#fb804a', pct * 2)
+    : lerpColor('#fb804a', '#9bb067', (pct - 0.5) * 2)
 
   return (
     <div className="relative flex items-center justify-center" style={{ width: r * 2, height: r * 2 }}>
@@ -40,7 +57,8 @@ export function ChecklistSidebar() {
   const {
     getCurrentProject, selectedSectionId, selectSection,
     toggleSectionComplete, setViewMode, updateSection,
-    addOutlineSection, removeOutlineSection, reorderOutlineSections
+    addOutlineSection, removeOutlineSection, reorderOutlineSections,
+    removeFromBibliography
   } = useBuddyStore()
 
   const project = getCurrentProject()
@@ -72,6 +90,7 @@ export function ChecklistSidebar() {
     window.addEventListener('mouseup', onMouseUp)
   }, [])
 
+  const [citationStyle, setCitationStyle] = useState<'APA 7' | 'MLA 9' | 'Chicago'>('APA 7')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
   const [addingSection, setAddingSection] = useState(false)
@@ -153,8 +172,8 @@ export function ChecklistSidebar() {
 
   return (
     <aside
-      className="border-l border-border bg-white flex flex-col overflow-hidden relative shrink-0"
-      style={{ width: sidebarWidth, height: '100%' }}
+      className="border-l border-border flex flex-col overflow-hidden relative shrink-0"
+      style={{ backgroundColor: '#ffffff', width: sidebarWidth, height: '100%' }}
     >
       {/* Resize handle */}
       <div
@@ -166,21 +185,21 @@ export function ChecklistSidebar() {
       </div>
 
       {/* Header */}
-      <div className="p-4 border-b border-border shrink-0">
+      <div className="p-4 border-b border-border shrink-0" style={{ backgroundColor: '#381d18' }}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-primary" />
-            <h2 className="font-serif font-semibold">Paper Outline</h2>
+            <BookOpen className="h-5 w-5 text-white" />
+            <h2 className="font-serif font-semibold text-white">Paper Outline</h2>
           </div>
           <RingProgress completed={completedCount} total={allSections.length} />
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="text-xs text-white/70 mt-1">
           {completedCount} of {allSections.length} sections complete
         </p>
       </div>
 
       {/* Scrollable sections list — capped so chat panel always shows */}
-      <div className="overflow-y-auto p-2 space-y-0.5 shrink-0" style={{ maxHeight: '40%' }}>
+      <div className="overflow-y-auto p-2 space-y-0.5 shrink-0" style={{ maxHeight: '40%', backgroundColor: '#ffffff' }}>
         {allSections.map((section) => {
           const isSelected = selectedSectionId === section.id
           const isEditing = editingId === section.id
@@ -300,8 +319,8 @@ export function ChecklistSidebar() {
         )}
       </div>
 
-      {/* Footer */}
-      <div className="p-3 border-t border-border shrink-0 space-y-2">
+      {/* Add section + word count — fixed below sections list */}
+      <div className="p-3 border-t border-border shrink-0 space-y-2" style={{ backgroundColor: '#ffffff' }}>
         <button
           onClick={() => setAddingSection(true)}
           className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border text-sm text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all"
@@ -314,6 +333,87 @@ export function ChecklistSidebar() {
           <span>{totalWords.toLocaleString()} words written</span>
         </div>
       </div>
+
+      {/* Bibliography — always visible */}
+      {(() => {
+        const bibIds = project.bibliography || []
+        const allRefs = allSections.flatMap(s => s.references || [])
+        const bibRefs = bibIds.map(id => allRefs.find(r => r.id === id)).filter(Boolean) as typeof allRefs
+        return (
+          <div className="flex-1 flex flex-col min-h-0 border-t border-border overflow-hidden">
+            {/* Bib header — always visible */}
+            <div className="p-3 border-b border-border shrink-0" style={{ backgroundColor: '#381d18' }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <BookMarked className="h-4 w-4 text-white" />
+                  <span className="text-sm font-semibold text-white">Bibliography</span>
+                </div>
+                <span className="text-xs text-white/60">{bibRefs.length} source{bibRefs.length !== 1 ? 's' : ''}</span>
+              </div>
+              {/* Citation style picker */}
+              <div className="flex items-center gap-1 mt-2">
+                {(['APA 7', 'MLA 9', 'Chicago'] as const).map(style => (
+                  <button
+                    key={style}
+                    onClick={() => setCitationStyle(style)}
+                    className="text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors"
+                    style={citationStyle === style
+                      ? { backgroundColor: '#fb804a', color: '#fff' }
+                      : { backgroundColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }
+                    }
+                  >
+                    {style}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Bib list */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-1.5" style={{ backgroundColor: '#ffffff' }}>
+              {bibRefs.length === 0 ? (
+                <div className="text-xs text-muted-foreground text-center py-6 px-3 space-y-1">
+                  <BookMarked className="h-6 w-6 mx-auto opacity-20" />
+                  <p className="opacity-60 leading-relaxed">No references added yet. Use the &ldquo;+ Use in Paper&rdquo; button on any reference to add it here.</p>
+                </div>
+              ) : (
+                bibRefs.map((ref, i) => (
+                  <div key={ref.id} className="rounded-lg border border-border bg-white p-2 text-xs">
+                    <div className="flex items-start justify-between gap-1">
+                      <p className="leading-snug text-[#381d18] flex-1">
+                        <span className="font-semibold text-[#a0ad6d] mr-1">[{i + 1}]</span>
+                        {ref.citation || ref.title}
+                      </p>
+                      <button
+                        onClick={() => removeFromBibliography(ref.id)}
+                        className="shrink-0 h-4 w-4 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        title="Remove from bibliography"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            {/* Finalize button — only when refs exist */}
+            {bibRefs.length > 0 && (
+              <div className="p-2 shrink-0 border-t border-border" style={{ backgroundColor: '#ffffff' }}>
+                <button
+                  className="w-full py-2 rounded-lg text-xs font-semibold text-white transition-colors"
+                  style={{ backgroundColor: '#381d18' }}
+                  onClick={() => {
+                    const lines = bibRefs.map((ref, i) => `[${i + 1}] ${ref.citation || ref.title}`)
+                    const text = `Bibliography (${citationStyle})\n\n` + lines.join('\n\n')
+                    navigator.clipboard.writeText(text).catch(() => {})
+                    alert(`Bibliography copied to clipboard!\n\nFormat: ${citationStyle}`)
+                  }}
+                >
+                  Finalize &amp; Copy Bibliography
+                </button>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
     </aside>
   )

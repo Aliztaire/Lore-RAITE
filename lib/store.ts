@@ -51,6 +51,10 @@ interface BuddyStore {
   setFocusMode: (on: boolean) => void
   setVoiceNotePanelOpen: (open: boolean) => void
 
+  // Bibliography actions
+  addToBibliography: (refId: string) => void
+  removeFromBibliography: (refId: string) => void
+
   // Voice Note actions
   addVoiceNote: (content: string, tag?: VoiceNote['tag']) => void
   removeVoiceNote: (id: string) => void
@@ -290,6 +294,22 @@ export const useBuddyStore = create<BuddyStore>()(
       setFocusMode: (on) => set({ focusMode: on }),
       setVoiceNotePanelOpen: (open) => set({ isVoiceNotePanelOpen: open }),
 
+      addToBibliography: (refId) => set(state => {
+        const project = state.projects.find(p => p.id === state.currentProjectId)
+        if (!project) return {}
+        const bibliography = [...(project.bibliography || []), refId].filter((v, i, a) => a.indexOf(v) === i)
+        const updated = { ...project, bibliography }
+        return { projects: state.projects.map(p => p.id === project.id ? updated : p) }
+      }),
+
+      removeFromBibliography: (refId) => set(state => {
+        const project = state.projects.find(p => p.id === state.currentProjectId)
+        if (!project) return {}
+        const bibliography = (project.bibliography || []).filter(id => id !== refId)
+        const updated = { ...project, bibliography }
+        return { projects: state.projects.map(p => p.id === project.id ? updated : p) }
+      }),
+
       addVoiceNote: (content, tag) => set(state => ({
         voiceNotes: [{ id: generateId(), content, tag, createdAt: new Date().toISOString() }, ...state.voiceNotes]
       })),
@@ -510,13 +530,25 @@ export const useBuddyStore = create<BuddyStore>()(
         }
         const updatedAt = new Date().toISOString()
         const newOutline = { ...project.outline, body: [...project.outline.body, newSection] }
+        // Place the new node below the last existing section node
+        const sectionNodes = project.nodes.filter(n => n.type === 'section')
+        const lastY = sectionNodes.length > 0 ? Math.max(...sectionNodes.map(n => n.y)) : 100
+        const newNode: CanvasNode = {
+          id: newSection.id,
+          type: 'section',
+          label: newSection.title,
+          x: 400,
+          y: lastY + 100,
+          sectionId: newSection.id
+        }
+        const newNodes = [...project.nodes, newNode]
         set(state => ({
           projects: state.projects.map(p =>
-            p.id === project.id ? { ...p, outline: newOutline, updatedAt } : p
+            p.id === project.id ? { ...p, outline: newOutline, nodes: newNodes, updatedAt } : p
           )
         }))
         const { userId } = get()
-        if (userId) firestoreService.updateProject(project.id, { outline: newOutline, updatedAt })
+        if (userId) firestoreService.updateProject(project.id, { outline: newOutline, nodes: newNodes, updatedAt })
       },
 
       removeOutlineSection: (sectionId) => {

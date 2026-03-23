@@ -11,6 +11,7 @@ import {
   BookMarked,
   Plus,
   ChevronLeft,
+  ChevronRight,
   Sparkles,
   X,
   ExternalLink,
@@ -21,13 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import ReactMarkdown from "react-markdown";
 import { useBuddyStore } from "@/lib/store";
 import type { ChatMessage, Reference } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -212,6 +207,8 @@ export function WritingView() {
     sectionChats,
     addSectionMessage,
     setViewMode,
+    addToBibliography,
+    removeFromBibliography,
   } = useBuddyStore();
 
   const project = getCurrentProject();
@@ -219,9 +216,36 @@ export function WritingView() {
   const [isRecording, setIsRecording] = useState(false);
   const [showReferenceForm, setShowReferenceForm] = useState(false);
   const [expandedRefId, setExpandedRefId] = useState<string | null>(null);
+  const [refsOpen, setRefsOpen] = useState(true);
   const [citationStyle, setCitationStyle] = useState<"APA" | "MLA" | "Chicago">("APA");
+  const [chatHeight, setChatHeight] = useState(288);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const isResizingChat = useRef(false);
+
+  const startChatResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingChat.current = true;
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isResizingChat.current) return;
+      const container = (e.target as HTMLElement).closest('.writing-col') as HTMLElement;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const newHeight = rect.bottom - ev.clientY;
+      setChatHeight(Math.min(Math.max(newHeight, 160), 520));
+    };
+    const onMouseUp = () => {
+      isResizingChat.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, []);
 
   const processedToolCallIds = useRef(new Set<string>());
 
@@ -384,6 +408,32 @@ export function WritingView() {
     if (selectedSectionId) updateSection(selectedSectionId, { content });
   };
 
+  const handleEditorPaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(e.clipboardData.items)
+    const imageItem = items.find(item => item.type.startsWith('image/'))
+    if (!imageItem) return
+    e.preventDefault()
+    const file = imageItem.getAsFile()
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string
+      const textarea = editorRef.current
+      if (!textarea) return
+      const start = textarea.selectionStart
+      const end = textarea.selectionEnd
+      const current = currentSection?.content || ''
+      const inserted = `\n![image](${dataUrl})\n`
+      const newContent = current.slice(0, start) + inserted + current.slice(end)
+      handleContentChange(newContent)
+      // restore cursor after the inserted markdown
+      requestAnimationFrame(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + inserted.length
+      })
+    }
+    reader.readAsDataURL(file)
+  }, [currentSection, editorRef]);
+
   const handleSendMessage = () => {
     if (!chatInput.trim() || !selectedSectionId || isLoading) return;
     const input = chatInput;
@@ -445,42 +495,56 @@ export function WritingView() {
   return (
     <div className="flex-1 flex overflow-hidden h-full min-h-0">
       {/* ── References Sidebar ─────────────────────────────────────────────── */}
-      <aside className="w-72 border-r border-border bg-card/30 flex flex-col shrink-0 h-full min-h-0">
-        <div className="p-4 border-b border-border">
+      <aside
+        className="border-r border-border flex flex-col shrink-0 h-full min-h-0 transition-all duration-200"
+        style={{ width: refsOpen ? '18rem' : '2.5rem' }}
+      >
+        {refsOpen ? (
+        <div className="p-4 border-b border-white/20 shrink-0" style={{ backgroundColor: '#381d18' }}>
           <div className="flex items-center justify-between mb-1">
-            <h3 className="font-medium text-sm flex items-center gap-2">
-              <BookMarked className="h-4 w-4 text-primary" />
+            <h3 className="font-medium text-sm flex items-center gap-2 text-white">
+              <BookMarked className="h-4 w-4 text-white" />
               References
             </h3>
-            <div className="flex items-center gap-2">
-              <Select value={citationStyle} onValueChange={(v: any) => setCitationStyle(v)}>
-                <SelectTrigger className="h-6 text-xs w-[85px] border-none bg-background/50 focus:ring-1 focus:ring-primary shadow-sm hover:bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="APA" className="text-xs">APA 7</SelectItem>
-                  <SelectItem value="MLA" className="text-xs">MLA 9</SelectItem>
-                  <SelectItem value="Chicago" className="text-xs">Chicago</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6"
+                className="h-6 w-6 text-white hover:bg-white/20"
                 onClick={() => setShowReferenceForm(true)}
               >
                 <Plus className="h-4 w-4" />
               </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-white hover:bg-white/20"
+                onClick={() => setRefsOpen(false)}
+                title="Collapse references"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-white/70">
             {currentSection.references.length}{" "}
             {currentSection.references.length === 1 ? "source" : "sources"}
             {" · "}auto-saved
           </p>
         </div>
+        ) : (
+          <button
+            onClick={() => setRefsOpen(true)}
+            className="flex-1 flex items-center justify-center hover:bg-white/10 transition-colors"
+            style={{ backgroundColor: '#381d18' }}
+            title="Open References"
+          >
+            <ChevronRight className="h-4 w-4 text-white" />
+          </button>
+        )}
 
-        <div className="flex-1 overflow-y-auto p-2 space-y-2">
+        {/* Body — white, only when open */}
+        {refsOpen && <div className="flex-1 overflow-y-auto p-2 space-y-2" style={{ backgroundColor: '#ffffff' }}>
           {currentSection.references.length === 0 ? (
             <div className="text-xs text-muted-foreground text-center py-8 px-3 space-y-2">
               <FileText className="h-8 w-8 mx-auto opacity-30" />
@@ -494,20 +558,37 @@ export function WritingView() {
             currentSection.references.map((ref) => (
               <div
                 key={ref.id}
-                className="rounded-lg bg-secondary/50 border border-border text-xs transition-colors overflow-hidden"
+                className="rounded-lg bg-white border border-border text-xs transition-colors overflow-hidden"
               >
+                {/* Use button */}
+                {(() => {
+                  const inBib = (project?.bibliography || []).includes(ref.id)
+                  return (
+                    <button
+                      onClick={() => inBib ? removeFromBibliography(ref.id) : addToBibliography(ref.id)}
+                      className="w-full flex items-center justify-between px-2 py-1.5 text-[10px] font-semibold transition-colors"
+                      style={inBib
+                        ? { backgroundColor: '#a0ad6d', color: '#fff' }
+                        : { backgroundColor: '#ffffff', color: '#a0ad6d' }
+                      }
+                    >
+                      <span>{inBib ? '✓ Added to Bibliography' : '+ Use in Paper'}</span>
+                    </button>
+                  )
+                })()}
                 {/* Collapsed header */}
                 <div
-                  className="p-2 flex items-start gap-2 cursor-pointer hover:bg-secondary/70 transition-colors"
+                  className="p-2 flex items-start gap-2 cursor-pointer transition-colors"
+                  style={{ backgroundColor: '#fef5dd' }}
                   onClick={() =>
                     setExpandedRefId(expandedRefId === ref.id ? null : ref.id)
                   }
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold leading-snug line-clamp-2">
+                    <p className="font-semibold leading-snug line-clamp-2" style={{ color: '#381d18' }}>
                       {ref.title}
                     </p>
-                    <p className="text-muted-foreground mt-0.5 truncate">
+                    <p className="mt-0.5 truncate text-muted-foreground">
                       {ref.authors.length > 0
                         ? `${toAPA7Author(ref.authors[0])}${
                             ref.authors.length > 1 ? " et al." : ""
@@ -567,11 +648,11 @@ export function WritingView() {
               </div>
             ))
           )}
-        </div>
+        </div>}
 
         {/* Manual add-reference form */}
-        {showReferenceForm && (
-          <div className="p-3 border-t border-border bg-card shrink-0">
+        {refsOpen && showReferenceForm && (
+          <div className="p-3 border-t border-border shrink-0" style={{ backgroundColor: '#fef5dd' }}>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium">Add Reference</span>
               <Button
@@ -612,57 +693,66 @@ export function WritingView() {
       </aside>
 
       {/* ── Main Editor ────────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 h-full min-h-0">
+      <div className="flex-1 flex flex-col min-w-0 h-full min-h-0 writing-col">
         {/* Section header */}
-        <div className="h-14 border-b border-border bg-card/50 flex items-center justify-between px-4 shrink-0">
+        <div className="h-14 border-b border-border flex items-center justify-between px-4 shrink-0" style={{ backgroundColor: '#381d18' }}>
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="sm"
+              className="text-white hover:bg-white/20 hover:text-white"
               onClick={() => setViewMode("dashboard")}
             >
               <ChevronLeft className="h-4 w-4 mr-1" />
               Back
             </Button>
-            <div className="h-4 w-px bg-border" />
+            <div className="h-4 w-px bg-white/30" />
             <div>
-              <h2 className="font-medium">{currentSection.title}</h2>
-              <p className="text-xs text-muted-foreground">
+              <h2 className="font-medium text-white">{currentSection.title}</h2>
+              <p className="text-xs text-white/70">
                 {currentSection.description}
               </p>
             </div>
           </div>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-white/70">
             {currentSection.content?.split(/\s+/).filter(Boolean).length || 0}{" "}
             words
           </span>
         </div>
 
         {/* Text editor */}
-        <div className="flex-1 p-6 overflow-y-auto">
+        <div className="flex-1 p-6 overflow-y-auto" style={{ backgroundColor: '#ffffff' }}>
           <Textarea
             ref={editorRef}
             value={currentSection.content || ""}
             onChange={(e) => handleContentChange(e.target.value)}
+            onPaste={handleEditorPaste}
             placeholder={`Start writing your ${currentSection.title.toLowerCase()} here…\n\nTip: Ask the AI assistant to search for literature — references will be extracted and saved automatically.`}
             className="w-full h-full min-h-[400px] resize-none bg-transparent border-0 focus-visible:ring-0 text-base leading-relaxed font-serif"
           />
         </div>
 
         {/* ── AI Chat Panel ─────────────────────────────────────────────────── */}
-        <div className="h-72 border-t border-border bg-card/30 flex flex-col shrink-0">
+        <div className="border-t border-border flex flex-col shrink-0" style={{ backgroundColor: '#fef5dd', height: chatHeight }}>
+          {/* Resize handle */}
+          <div
+            onMouseDown={startChatResize}
+            className="h-1.5 w-full cursor-row-resize hover:bg-[#381d18]/20 transition-colors shrink-0 flex items-center justify-center group"
+          >
+            <div className="w-8 h-0.5 rounded-full bg-gray-300 group-hover:bg-[#381d18]/40 transition-colors" />
+          </div>
           {/* Chat header */}
-          <div className="p-3 border-b border-border flex items-center justify-between shrink-0">
+          <div className="p-3 border-b border-border flex items-center justify-between shrink-0" style={{ backgroundColor: '#381d18' }}>
             <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium">AI Assistant</span>
+              <Sparkles className="h-4 w-4 text-white" />
+              <span className="text-sm font-medium text-white">AI Assistant</span>
             </div>
             <Button
               variant="outline"
               size="sm"
               onClick={handleAudit}
               disabled={isLoading}
-              className="gap-2 text-xs"
+              className="gap-2 text-xs text-white border-white/40 hover:bg-white/20 hover:text-white bg-transparent"
             >
               <AlertTriangle className="h-3 w-3" />
               What&apos;s Missing?
@@ -690,19 +780,18 @@ export function WritingView() {
               messages.map((msg) => (
                 <div
                   key={msg.id}
-                  className={cn(
-                    "max-w-[80%] p-3 rounded-lg text-sm",
-                    msg.role === "user"
-                      ? "ml-auto bg-primary text-primary-foreground"
-                      : "bg-secondary",
-                  )}
+                  className={cn("max-w-[80%] p-3 rounded-lg text-sm")}
+                  style={msg.role === "user"
+                    ? { backgroundColor: '#ffffff', color: '#381d18', marginLeft: 'auto', border: '1px solid #e5e7eb' }
+                    : { backgroundColor: '#fff3e0', color: '#381d18' }
+                  }
                 >
                   {(msg.parts as any[])?.map((part: any, i: number) => {
                     if (part.type === "text") {
                       return (
-                        <p key={i} className="whitespace-pre-wrap leading-relaxed">
-                          {part.text}
-                        </p>
+                        <div key={i} className="prose prose-sm max-w-none leading-relaxed [&_strong]:font-bold [&_em]:italic [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_p]:mb-1.5 [&_p:last-child]:mb-0">
+                          <ReactMarkdown>{part.text}</ReactMarkdown>
+                        </div>
                       );
                     }
                     if (part.type === "tool-search_scholarly_articles") {
@@ -749,7 +838,7 @@ export function WritingView() {
           </div>
 
           {/* Chat input */}
-          <div className="p-3 border-t border-border shrink-0">
+          <div className="p-3 border-t border-border shrink-0" style={{ backgroundColor: '#fef5dd' }}>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -774,7 +863,7 @@ export function WritingView() {
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 placeholder="Ask a question or request a literature search…"
-                className="flex-1"
+                className="flex-1 bg-white"
                 disabled={isLoading}
               />
               <Button

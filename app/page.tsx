@@ -91,11 +91,7 @@ export default function BuddyApp() {
         {viewMode === 'dashboard' && <DashboardOverview />}
         {viewMode === 'canvas' && <NodeCanvas />}
         {viewMode === 'writing' && <WritingView />}
-        {viewMode === 'analyzer' && (
-          <div className="flex-1 overflow-y-auto bg-zinc-50 p-6">
-            <Analyzer />
-          </div>
-        )}
+        {viewMode === 'analyzer' && <Analyzer />}
         {viewMode === 'literature' && <IntegratedLiteratureAnalyzer />}
 
         {/* Checklist Sidebar - shown in dashboard and writing views (hidden in writing focus mode) */}

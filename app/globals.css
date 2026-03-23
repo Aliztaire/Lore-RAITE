@@ -4,34 +4,35 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #fdfbfd;
+  --background: #ffffff;
   --foreground: #1e1a1e;
   --card: #ffffff;
   --card-foreground: #1e1a1e;
   --popover: #ffffff;
   --popover-foreground: #1e1a1e;
 
-  /* Pink as primary */
-  --primary: #d4547a;
-  --primary-foreground: #fff6f9;
+  /* Olive green as primary */
+  --primary: #a0ad6d;
+  --primary-foreground: #ffffff;
 
   /* Green as secondary */
   --secondary: #d6edda;
   --secondary-foreground: #14402a;
 
   --muted: #e2d8e0;
-  --muted-foreground: #7a5e6e;
+  --muted-foreground: #0f0909;
+  --text-foreground: #ffffff;
 
-  /* Green as accent */
+  /* Green as accent */ 
   --accent: #3dab68;
   --accent-foreground: #ffffff;
 
   --destructive: #d63e5a;
   --destructive-foreground: #fff6f9;
 
-  --border: #dcc8d4;
+  --border: #381d18;
   --input: #ffffff;
-  --ring: #d4547a;
+  --ring: #a0ad6d;
 
   --chart-1: #d4547a;
   --chart-2: #3dab68;
@@ -42,10 +43,10 @@
   /* Larger radius for LUMI's rounded feel */
   --radius: 1rem;
 
-  --sidebar: #f5f0f3;
+  --sidebar: #a0ad6d;
   --sidebar-foreground: #1e1a1e;
-  --sidebar-primary: #d4547a;
-  --sidebar-primary-foreground: #fff6f9;
+  --sidebar-primary: #a0ad6d;
+  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #d6edda;
   --sidebar-accent-foreground: #14402a;
   --sidebar-border: #dcc8d4;
@@ -143,11 +144,112 @@
 
   html {
     min-height: 100%;
-    background-color: #fdfbfd;
+    background-color: #ffffff;
   }
 
   body {
     @apply bg-background text-foreground;
   }
 }
+
+/* ── CSS Teddy Bear ── */
+.bear-scene {
+  font-size: 8px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30em;
+  height: 40em;
+  overflow: visible;
+  isolation: isolate;
+}
+
+.teddy-bear {
+  height: 40em;
+  width: 30em;
+  position: relative;
+  z-index: 2;
+  background:
+    radial-gradient(ellipse 100% 100%, #cbf3de 49%, transparent 50%) left 50% top 52% / 1em 1em,
+    radial-gradient(ellipse 100% 100%, #8cedba 49%, transparent 50%) left 50% top 55% / 3.5em 3.5em,
+    radial-gradient(ellipse 100% 100%, #8cecb9 49%, transparent 50%) left 41% top 59% / 1em 1em,
+    radial-gradient(ellipse 100% 100%, #79cc9e 49%, transparent 50%) left 41% top 52% / 3em 3em,
+    radial-gradient(ellipse 100% 100%, #79cc9e 49%, transparent 50%) left 41% top 58% / 3em 3em,
+    radial-gradient(ellipse 100% 100%, #8cecb9 49%, transparent 50%) right 41% top 51% / 1em 1em,
+    radial-gradient(ellipse 100% 100%, #79cc9e 49%, transparent 50%) right 41% top 52% / 3em 3em,
+    radial-gradient(ellipse 100% 100%, #79cc9e 49%, transparent 50%) right 41% top 58% / 3em 3em,
+    radial-gradient(ellipse 100% 100%, #f89182 49%, transparent 50%) left 33% top 36% / .8em .8em,
+    radial-gradient(ellipse 100% 100%, #ff7a5f 49%, transparent 50%) left 33% top 37% / 3em 3em,
+    radial-gradient(ellipse 100% 100%, #f89182 49%, transparent 50%) right 33% top 36% / .8em .8em,
+    radial-gradient(ellipse 100% 100%, #ff7a5f 49%, transparent 50%) right 33% top 37% / 3em 3em,
+    radial-gradient(ellipse 100% 100%, #9f604d 49%, transparent 50%) 50% 34% / 2em 1.7em,
+    radial-gradient(ellipse 100% 100% at 50% -10%, transparent 43%, #905f2c 43% 49%, transparent 50%) 50% 43% / 6em 3em,
+    linear-gradient(0deg, #905f2c, #905f2c) 50% 38% / .2em 3em,
+    radial-gradient(ellipse 100% 100%, #feca8e 49.8%, transparent 50%) 50% 36.5% / 8em 6.5em,
+    radial-gradient(ellipse 100% 100%, #eedccc 45%, transparent 50%) right 38% top 30% / .6em .6em,
+    radial-gradient(ellipse 100% 100%, #333 49%, transparent 50%) right 39% top 30% / 2.2em 2.2em,
+    radial-gradient(ellipse 100% 100%, #eedccc 45%, transparent 50%) left 38% top 30% / .6em .6em,
+    radial-gradient(ellipse 100% 100%, #333 49%, transparent 50%) left 39% top 30% / 2.2em 2.2em,
+    radial-gradient(ellipse 100% 100%, #9f604d 49.8%, transparent 50%) left 50% top 15% / 21em 19em,
+    radial-gradient(ellipse 100% 100%, transparent 33.8%, #9f604b 34% 49.8%, transparent 50%) left 20% top 5% / 6em 6em,
+    radial-gradient(ellipse 100% 100%, #fdca8d 49%, transparent 50%) left 24% top 9% / 4em 4em,
+    radial-gradient(ellipse 100% 100%, #f1b376 49%, transparent 50%) left 20% top 5% / 6em 6em,
+    radial-gradient(ellipse 100% 100%, transparent 33.8%, #9f604b 34% 49.8%, transparent 50%) right 20% top 5% / 6em 6em,
+    radial-gradient(ellipse 100% 100%, #fdca8d 49%, transparent 50%) right 24% top 9% / 4em 4em,
+    radial-gradient(ellipse 100% 100%, #f1b376 49%, transparent 50%) right 20% top 5% / 6em 6em,
+    radial-gradient(ellipse 100% 100%, #feca8e 49.8%, transparent 50%) left 50% bottom 20% / 12em 11em,
+    radial-gradient(ellipse 100% 100%, #9f604d 49.8%, transparent 50%) left 50% bottom 15% / 18em 20em,
+    radial-gradient(ellipse 100% 100%, #dba26a 49%, transparent 50%) left 50% bottom 0 / 30em 7em;
+  background-repeat: no-repeat;
+}
+
+.teddy-bear::before,
+.teddy-bear::after {
+  --rotation: 35deg;
+  content: '';
+  display: block;
+  position: absolute;
+  bottom: .7em;
+  height: 10em;
+  aspect-ratio: 8 / 11;
+  background: #feca8e;
+  border: 1em solid #be785e;
+  border-radius: 50% 50% 50% 50% / 43% 43% 65% 65%;
+}
+.teddy-bear::before {
+  left: 3.5em;
+  transform: rotate(-35deg);
+}
+.teddy-bear::after {
+  right: 3.5em;
+  transform: rotate(35deg);
+}
+
+.bear-scene::before,
+.bear-scene::after {
+  content: '';
+  display: block;
+  position: absolute;
+  height: 12em;
+  width: 6.5em;
+  top: 52%;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 100% 100%, #feca8e 49%, transparent 50%) left 50% bottom .4em / 3.5em 3.2em,
+    radial-gradient(ellipse 100% 100%, #be785e 49.8%, transparent 50%) left 50% top 50% / 100% 100%;
+  background-repeat: no-repeat;
+}
+.bear-scene::before {
+  left: 5.5em;
+  transform-origin: top center;
+  transform: rotate(45deg);
+}
+.bear-scene::after {
+  right: 5.5em;
+  transform-origin: top center;
+  transform: rotate(-45deg);
+}
+
+
 

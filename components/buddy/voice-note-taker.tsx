@@ -201,11 +201,11 @@ export function VoiceNoteTaker() {
   return (
     <div
       className={cn(
-        "flex flex-col h-full bg-slate-50/50 border-r border-border transition-all duration-300 ease-in-out shrink-0",
+        "flex flex-col h-full border-r border-border transition-all duration-300 ease-in-out shrink-0 bg-[#fef5dd]",
         isVoiceNotePanelOpen ? "w-[340px] opacity-100" : "w-0 opacity-0 overflow-hidden"
       )}
     >
-      <div className="flex items-center justify-between p-4 border-b bg-white shrink-0">
+      <div className="flex items-center justify-between p-4 border-b shrink-0">
         <h2 className="font-bold flex items-center gap-2 text-lg text-slate-800">
           <Mic className="h-5 w-5 text-primary" />
           Capture Thoughts
@@ -215,7 +215,7 @@ export function VoiceNoteTaker() {
         </Button>
       </div>
 
-      <div className="flex flex-col gap-4 border-b bg-white shrink-0 shadow-sm z-20">
+      <div className="flex flex-col gap-4 border-b shrink-0 shadow-sm z-20">
         <div className="p-5 flex flex-col gap-5">
           <div className="flex flex-col items-center gap-3">
             {!isRecording ? (

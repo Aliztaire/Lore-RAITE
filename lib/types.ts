@@ -10,6 +10,7 @@ export interface Project {
   outline: PaperOutline
   nodes: CanvasNode[]
   edges: CanvasEdge[]
+  bibliography: string[] // reference IDs marked for use
 }
 
 export interface PaperOutline {
@@ -56,6 +57,9 @@ export interface CanvasNode {
     source?: string
     importance?: 'high' | 'medium' | 'low'
     paragraphIndex?: number
+    imageUrl?: string
+    isCustom?: boolean
+    resolved?: boolean
   }
 }
 

@@ -95,13 +95,13 @@ export function ProjectSwitcher() {
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="flex items-center gap-2 px-3 py-2 h-auto text-foreground hover:bg-secondary"
+          className="flex items-center gap-2 px-3 py-2 h-auto text-white/80 hover:text-white hover:bg-white/10"
         >
-          <FolderOpen className="h-4 w-4 text-primary" />
+          <FolderOpen className="h-4 w-4 text-white/70" />
           <span className="font-medium truncate max-w-[180px]">
             {currentProject?.title || 'Select Project'}
           </span>
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          <ChevronDown className="h-4 w-4 text-white/50" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-72 bg-white border border-border shadow-md backdrop-filter-none">
