@@ -1,19 +1,12 @@
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono, Lora } from 'next/font/google'
+import { Urbanist } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
-const _geist = Geist({ 
+const _urbanist = Urbanist({
   subsets: ["latin"],
-  variable: '--font-geist'
-});
-const _geistMono = Geist_Mono({ 
-  subsets: ["latin"],
-  variable: '--font-geist-mono'
-});
-const _lora = Lora({
-  subsets: ["latin"],
-  variable: '--font-lora'
+  variable: '--font-urbanist',
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
@@ -52,7 +45,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${_geist.variable} ${_geistMono.variable} ${_lora.variable} font-sans antialiased`}>
+      <body className={`${_urbanist.variable} font-sans antialiased`}>
         <AuthProvider>
           {children}
         </AuthProvider>

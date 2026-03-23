@@ -40,7 +40,7 @@ export function DashboardOverview() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto relative" style={{ background: '#f4f8f5' }}>
+    <div className="flex-1 overflow-y-auto relative" style={{ background: '#fdfbfd' }}>
       {/* Top hero banner */}
       <div
         className="px-8 pt-8 pb-10"

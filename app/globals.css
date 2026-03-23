@@ -3,14 +3,12 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Pink + Green glassmorphism — LUMI style */
 :root {
-  /* Transparent so the html-level gradient shows through all divs */
-  --background: transparent;
+  --background: #fdfbfd;
   --foreground: #1e1a1e;
-  --card: rgba(255, 255, 255, 0.60);
+  --card: #ffffff;
   --card-foreground: #1e1a1e;
-  --popover: rgba(255, 255, 255, 0.75);
+  --popover: #ffffff;
   --popover-foreground: #1e1a1e;
 
   /* Pink as primary */
@@ -32,7 +30,7 @@
   --destructive-foreground: #fff6f9;
 
   --border: #dcc8d4;
-  --input: rgba(255, 255, 255, 0.70);
+  --input: #ffffff;
   --ring: #d4547a;
 
   --chart-1: #d4547a;
@@ -44,7 +42,7 @@
   /* Larger radius for LUMI's rounded feel */
   --radius: 1rem;
 
-  --sidebar: rgba(240, 235, 238, 0.80);
+  --sidebar: #f5f0f3;
   --sidebar-foreground: #1e1a1e;
   --sidebar-primary: #d4547a;
   --sidebar-primary-foreground: #fff6f9;
@@ -66,9 +64,9 @@
 }
 
 @theme inline {
-  --font-sans: 'Geist', 'Geist Fallback';
-  --font-serif: 'Lora', 'Georgia', serif;
-  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --font-sans: var(--font-urbanist), 'Urbanist', sans-serif;
+  --font-serif: var(--font-urbanist), 'Urbanist', sans-serif;
+  --font-mono: var(--font-urbanist), 'Urbanist', sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -143,44 +141,13 @@
     scrollbar-color: #dcc8d4 transparent;
   }
 
-  /* Gradient lives on html so no child div can cover it */
   html {
     min-height: 100%;
     background-color: #fdfbfd;
-    background-image:
-      radial-gradient(ellipse 65% 55% at 8%  18%,  rgba(240, 100, 160, 0.58) 0%, transparent 70%),
-      radial-gradient(ellipse 60% 50% at 90% 12%,  rgba(60,  185, 110, 0.52) 0%, transparent 68%),
-      radial-gradient(ellipse 55% 50% at 78% 85%,  rgba(255, 140, 190, 0.50) 0%, transparent 65%),
-      radial-gradient(ellipse 50% 45% at 18% 80%,  rgba(70,  200, 130, 0.45) 0%, transparent 62%),
-      radial-gradient(ellipse 40% 35% at 50% 48%,  rgba(255, 180, 210, 0.22) 0%, transparent 60%);
-    background-attachment: fixed;
   }
 
   body {
-    @apply text-foreground;
-    background: transparent;
+    @apply bg-background text-foreground;
   }
 }
 
-@layer components {
-  /* Glassmorphism — applied to any semi-transparent card */
-  .bg-card\/50,
-  .bg-card\/30,
-  .bg-secondary\/50,
-  .glass {
-    background-color: rgba(255, 255, 255, 0.52) !important;
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-    border: 1px solid rgba(212, 84, 122, 0.18);
-    box-shadow:
-      0 8px 32px rgba(212, 84, 122, 0.10),
-      0 4px 16px rgba(61, 171, 104, 0.08);
-  }
-
-  /* Soft glow on cards */
-  .card, [class*="rounded-xl"], [class*="rounded-2xl"] {
-    box-shadow:
-      0 4px 24px rgba(212, 84, 122, 0.08),
-      0 2px 8px rgba(61, 171, 104, 0.06);
-  }
-}
