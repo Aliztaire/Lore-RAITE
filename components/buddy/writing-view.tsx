@@ -305,7 +305,8 @@ export function WritingView() {
     loading: boolean;
     ref: Reference | null;
     inserted: boolean;
-  }>({ loading: false, ref: null, inserted: false });
+    noMatch: boolean;
+  }>({ loading: false, ref: null, inserted: false, noMatch: false });
   const editorWrapRef = useRef<HTMLDivElement>(null);
   // Stores selected text in a ref so findMatchingReference can read it even if
   // selectionTooltip state has already been cleared by the time the click fires.
@@ -375,7 +376,7 @@ export function WritingView() {
         setTimeout(() => {
           if (!isMatchingRef.current) {
             setSelectionTooltip(null);
-            setRefMatchState({ loading: false, ref: null, inserted: false });
+            setRefMatchState({ loading: false, ref: null, inserted: false, noMatch: false });
           }
         }, 150);
         return;
@@ -392,7 +393,7 @@ export function WritingView() {
       if (!wrapRect) return;
       selectedTextRef.current = text;
       selectionEndRef.current = to;
-      setRefMatchState({ loading: false, ref: null, inserted: false });
+      setRefMatchState({ loading: false, ref: null, inserted: false, noMatch: false });
       setSelectionTooltip({
         text,
         x: coords.left - wrapRect.left,
@@ -434,12 +435,12 @@ export function WritingView() {
       ...(project.outline.conclusion.references || []),
     ];
     if (allRefs.length === 0) {
-      setRefMatchState({ loading: false, ref: null, inserted: false });
+      setRefMatchState({ loading: false, ref: null, inserted: false, noMatch: false });
       return;
     }
     // Lock: prevent onSelectionUpdate from clearing tooltip during fetch
     isMatchingRef.current = true;
-    setRefMatchState({ loading: true, ref: null, inserted: false });
+    setRefMatchState({ loading: true, ref: null, inserted: false, noMatch: false });
     try {
       const res = await fetch('/api/find-reference', {
         method: 'POST',
@@ -448,12 +449,11 @@ export function WritingView() {
       });
       const { referenceId } = await res.json();
       const matched = allRefs.find(r => r.id === referenceId) || null;
-      // If no match, release the lock so user can select new text
       if (!matched) isMatchingRef.current = false;
-      setRefMatchState({ loading: false, ref: matched, inserted: false });
+      setRefMatchState({ loading: false, ref: matched, inserted: false, noMatch: !matched });
     } catch {
       isMatchingRef.current = false;
-      setRefMatchState({ loading: false, ref: null, inserted: false });
+      setRefMatchState({ loading: false, ref: null, inserted: false, noMatch: false });
     }
   }, [project]); // no longer depends on selectionTooltip — uses ref instead
 
@@ -938,33 +938,6 @@ export function WritingView() {
           )}
         </div>}
 
-        {/* Citation style selector */}
-        {refsOpen && (
-          <div className="shrink-0 border-t border-border px-3 py-2.5 flex items-center gap-2" style={{ backgroundColor: '#fef5dd' }}>
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mr-1">Format</span>
-            {(['APA', 'MLA', 'Chicago'] as const).map(style => (
-              <button
-                key={style}
-                onClick={() => setPendingStyle(style)}
-                className="px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-all"
-                style={pendingStyle === style
-                  ? { backgroundColor: '#381d18', color: '#fff', borderColor: '#381d18' }
-                  : { backgroundColor: '#fff', color: '#381d18', borderColor: '#ede9e3' }
-                }
-              >
-                {style === 'APA' ? 'APA 7' : style === 'MLA' ? 'MLA 9' : 'Chicago'}
-              </button>
-            ))}
-            <button
-              onClick={() => setCitationStyle(pendingStyle)}
-              disabled={pendingStyle === citationStyle}
-              className="ml-auto px-3 py-1 rounded-full text-[10px] font-semibold transition-all disabled:opacity-40"
-              style={{ backgroundColor: pendingStyle !== citationStyle ? '#a0ad6d' : '#e5e7eb', color: pendingStyle !== citationStyle ? '#fff' : '#9ca3af' }}
-            >
-              Apply
-            </button>
-          </div>
-        )}
 
         {/* Manual add-reference form */}
         {refsOpen && showReferenceForm && (
@@ -1098,7 +1071,7 @@ export function WritingView() {
               <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
                 <span className="text-[11px] font-semibold text-white/80 tracking-wide uppercase">Find Reference</span>
                 <button
-                  onClick={() => { isMatchingRef.current = false; setSelectionTooltip(null); setRefMatchState({ loading: false, ref: null, inserted: false }); }}
+                  onClick={() => { isMatchingRef.current = false; setSelectionTooltip(null); setRefMatchState({ loading: false, ref: null, inserted: false, noMatch: false }); }}
                   className="text-white/50 hover:text-white transition-colors"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -1113,7 +1086,7 @@ export function WritingView() {
 
               {/* Action area */}
               <div className="px-3 py-2.5 space-y-2">
-                {!refMatchState.ref && !refMatchState.loading && (
+                {!refMatchState.ref && !refMatchState.loading && !refMatchState.noMatch && (
                   <button
                     onClick={findMatchingReference}
                     className="w-full py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5"
@@ -1122,6 +1095,19 @@ export function WritingView() {
                     <Sparkles className="h-3.5 w-3.5" />
                     Find Best Match
                   </button>
+                )}
+
+                {refMatchState.noMatch && !refMatchState.loading && (
+                  <div className="space-y-1.5">
+                    <p className="text-center text-[11px] text-white/50">No matching reference found.</p>
+                    <button
+                      onClick={() => { setRefMatchState(s => ({ ...s, noMatch: false })); findMatchingReference(); }}
+                      className="w-full py-1.5 rounded-lg text-[11px] font-medium transition-all"
+                      style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}
+                    >
+                      Try again
+                    </button>
+                  </div>
                 )}
 
                 {refMatchState.loading && (
