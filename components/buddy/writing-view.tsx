@@ -307,7 +307,12 @@ export function WritingView() {
     inserted: boolean;
   }>({ loading: false, ref: null, inserted: false });
   const editorWrapRef = useRef<HTMLDivElement>(null);
-  // Prevents onSelectionUpdate from dismissing tooltip while AI fetch is in flight
+  // Stores selected text in a ref so findMatchingReference can read it even if
+  // selectionTooltip state has already been cleared by the time the click fires.
+  const selectedTextRef = useRef('');
+  const selectionEndRef = useRef(0); // stores 'to' pos so insert works after selection collapses
+  // Set to true while loading or result is shown; blocks onSelectionUpdate from
+  // clearing the tooltip. Reset explicitly when done.
   const isMatchingRef = useRef(false);
 
   // ── TipTap rich-text editor ──────────────────────────────────────────────────
@@ -362,14 +367,21 @@ export function WritingView() {
       updateSection(selectedSectionId, { content: md });
     },
     onSelectionUpdate: ({ editor }) => {
-      // Don't dismiss tooltip while AI fetch is in flight or result is showing
-      if (isMatchingRef.current) return;
       const { from, to } = editor.state.selection;
       if (from === to) {
-        setSelectionTooltip(null);
-        setRefMatchState({ loading: false, ref: null, inserted: false });
+        // Delay clearing so any pending click handlers on the tooltip fire first.
+        // If isMatchingRef becomes true within 150 ms (user clicked Find Best Match),
+        // the timeout no-ops and the tooltip stays.
+        setTimeout(() => {
+          if (!isMatchingRef.current) {
+            setSelectionTooltip(null);
+            setRefMatchState({ loading: false, ref: null, inserted: false });
+          }
+        }, 150);
         return;
       }
+      // Don't replace tooltip with a new selection while a match is in progress
+      if (isMatchingRef.current) return;
       const text = editor.state.doc.textBetween(from, to, ' ').trim();
       if (text.length < 10) {
         setSelectionTooltip(null);
@@ -378,6 +390,8 @@ export function WritingView() {
       const coords = editor.view.coordsAtPos(to);
       const wrapRect = editorWrapRef.current?.getBoundingClientRect();
       if (!wrapRect) return;
+      selectedTextRef.current = text;
+      selectionEndRef.current = to;
       setRefMatchState({ loading: false, ref: null, inserted: false });
       setSelectionTooltip({
         text,
@@ -412,29 +426,36 @@ export function WritingView() {
   const isResizingChat = useRef(false);
 
   const findMatchingReference = useCallback(async () => {
-    if (!selectionTooltip || !project) return;
+    const text = selectedTextRef.current;
+    if (!text || !project) return;
     const allRefs = [
       ...(project.outline.introduction.references || []),
       ...project.outline.body.flatMap(s => s.references || []),
       ...(project.outline.conclusion.references || []),
     ];
-    if (allRefs.length === 0) return;
+    if (allRefs.length === 0) {
+      setRefMatchState({ loading: false, ref: null, inserted: false });
+      return;
+    }
+    // Lock: prevent onSelectionUpdate from clearing tooltip during fetch
     isMatchingRef.current = true;
     setRefMatchState({ loading: true, ref: null, inserted: false });
     try {
       const res = await fetch('/api/find-reference', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selectedText: selectionTooltip.text, references: allRefs }),
+        body: JSON.stringify({ selectedText: text, references: allRefs }),
       });
       const { referenceId } = await res.json();
       const matched = allRefs.find(r => r.id === referenceId) || null;
+      // If no match, release the lock so user can select new text
+      if (!matched) isMatchingRef.current = false;
       setRefMatchState({ loading: false, ref: matched, inserted: false });
     } catch {
-      setRefMatchState({ loading: false, ref: null, inserted: false });
       isMatchingRef.current = false;
+      setRefMatchState({ loading: false, ref: null, inserted: false });
     }
-  }, [selectionTooltip, project]);
+  }, [project]); // no longer depends on selectionTooltip — uses ref instead
 
   const insertCitationAtSelection = useCallback(() => {
     if (!editor || !refMatchState.ref) return;
@@ -446,8 +467,9 @@ export function WritingView() {
       : 'Unknown';
     const year = ref.year ?? 'n.d.';
     const inline = ` (${authorPart}, ${year})`;
-    const { to } = editor.state.selection;
-    editor.chain().focus().insertContentAt(to, inline).run();
+    // Use stored position — selection may have collapsed after tooltip appeared
+    const insertAt = selectionEndRef.current || editor.state.selection.to;
+    editor.chain().focus().insertContentAt(insertAt, inline).run();
     setRefMatchState(s => ({ ...s, inserted: true }));
     setTimeout(() => {
       isMatchingRef.current = false;
@@ -1142,15 +1164,22 @@ export function WritingView() {
                   <p className="text-center text-[11px] text-[#a0ad6d] font-semibold py-1">✓ Citation inserted!</p>
                 )}
 
-                {!refMatchState.loading && !refMatchState.ref && !refMatchState.inserted && (
-                  <p className="text-[10px] text-white/40 text-center">
-                    AI will match from {[
-                      project?.outline.introduction.references?.length ?? 0,
-                      ...(project?.outline.body.map(s => s.references?.length ?? 0) ?? []),
-                      project?.outline.conclusion.references?.length ?? 0,
-                    ].reduce((a, b) => a + b, 0)} references in this project
-                  </p>
-                )}
+                {!refMatchState.loading && !refMatchState.ref && !refMatchState.inserted && (() => {
+                  const total = [
+                    project?.outline.introduction.references?.length ?? 0,
+                    ...(project?.outline.body.map(s => s.references?.length ?? 0) ?? []),
+                    project?.outline.conclusion.references?.length ?? 0,
+                  ].reduce((a, b) => a + b, 0);
+                  return total === 0 ? (
+                    <p className="text-[10px] text-yellow-400/70 text-center">
+                      No references found in this project yet. Ask the AI chat to search for literature first.
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-white/40 text-center">
+                      AI will match from {total} reference{total !== 1 ? 's' : ''} in this project
+                    </p>
+                  );
+                })()}
               </div>
             </div>
           )}
