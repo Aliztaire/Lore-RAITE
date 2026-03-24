@@ -13,6 +13,7 @@ import { GlobalAIChat } from '@/components/buddy/global-ai-chat'
 import { Analyzer } from '@/components/Analyzer'
 import { IntegratedLiteratureAnalyzer } from '@/components/buddy/integrated-literature-analyzer'
 import { exportToDocx, downloadBlob } from '@/lib/export'
+import { DocumentPreviewModal } from '@/components/buddy/document-preview-modal'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/auth-provider'
 
@@ -20,6 +21,7 @@ export default function BuddyApp() {
   const { showOnboarding, viewMode, getCurrentProject, projects, focusMode } = useBuddyStore()
   const project = getCurrentProject()
   const [isHydrated, setIsHydrated] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
 
   const { user, loading } = useAuth()
   const router = useRouter()
@@ -73,7 +75,7 @@ export default function BuddyApp() {
   if (showOnboarding || (projects.length === 0 && !project)) {
     return (
       <div className="h-screen bg-background flex flex-col">
-        <DashboardHeader onExport={handleExport} showProjectActions={false} />
+        <DashboardHeader showProjectActions={false} />
         <Onboarding />
       </div>
     )
@@ -81,7 +83,10 @@ export default function BuddyApp() {
 
   return (
     <div className="h-screen bg-background flex flex-col">
-      <DashboardHeader onExport={handleExport} />
+      <DashboardHeader />
+      {showPreview && project && (
+        <DocumentPreviewModal project={project} onClose={() => setShowPreview(false)} onExport={handleExport} />
+      )}
 
       <div className="flex-1 flex overflow-hidden">
         {/* Voice Notes Panel */}
@@ -92,7 +97,7 @@ export default function BuddyApp() {
         {viewMode === 'canvas' && <NodeCanvas />}
         {viewMode === 'writing' && <WritingView />}
         {viewMode === 'analyzer' && <Analyzer />}
-        {viewMode === 'literature' && <IntegratedLiteratureAnalyzer />}
+        {viewMode === 'literature' && <IntegratedLiteratureAnalyzer onPreview={() => setShowPreview(true)} />}
 
         {/* Checklist Sidebar - shown in dashboard and writing views (hidden in writing focus mode) */}
         {(viewMode === 'dashboard' || (viewMode === 'writing' && !focusMode)) && project && (

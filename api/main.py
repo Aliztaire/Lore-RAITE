@@ -60,7 +60,9 @@ def clean_group(raw_data, min_val, max_val):
         cleaned_2.append(x)
     report["criteria_removed"] = len(cleaned_1) - len(cleaned_2)
 
-    if len(cleaned_2) > 3:
+    # Only apply IQR outlier removal when there are enough points
+    # that losing a few won't drop below the minimum needed for tests
+    if len(cleaned_2) >= 8:
         q1, q3 = np.percentile(cleaned_2, [25, 75])
         iqr = q3 - q1
         lower_bound = q1 - 1.5 * iqr
@@ -72,6 +74,14 @@ def clean_group(raw_data, min_val, max_val):
                 report["outliers"].append(x)
             else:
                 final_data.append(x)
+
+        # Safety: if outlier removal leaves too few points, keep the cleaned data as-is
+        if len(final_data) < 3:
+            report["outliers_removed"] = 0
+            report["outliers"] = []
+            report["final_count"] = len(cleaned_2)
+            return cleaned_2, report
+
         report["outliers_removed"] = len(cleaned_2) - len(final_data)
         report["final_count"] = len(final_data)
         return final_data, report
@@ -139,9 +149,13 @@ async def analyze_data(data: ResearchData):
             cleaned_groups[name] = g_clean
             reports[name] = g_rep
 
-    for g in cleaned_groups.values():
-        if len(g) < 2:
-            return {"error": "Not enough data points after cleaning."}
+    for name, g in cleaned_groups.items():
+        if len(g) < 3:
+            return {
+                "error": f'"{name}" has only {len(g)} usable data point{"s" if len(g) != 1 else ""} after cleaning. '
+                         f'Each group needs at least 3 valid values. '
+                         f'Check for missing values, extreme exclusion criteria, or simply add more data points.'
+            }
 
     group_stats = []
     for name, vals in cleaned_groups.items():

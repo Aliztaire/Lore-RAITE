@@ -91,6 +91,7 @@ export function ChecklistSidebar() {
   }, [])
 
   const [citationStyle, setCitationStyle] = useState<'APA 7' | 'MLA 9' | 'Chicago'>('APA 7')
+  const [pendingStyle, setPendingStyle] = useState<'APA 7' | 'MLA 9' | 'Chicago'>('APA 7')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
   const [addingSection, setAddingSection] = useState(false)
@@ -355,9 +356,9 @@ export function ChecklistSidebar() {
                 {(['APA 7', 'MLA 9', 'Chicago'] as const).map(style => (
                   <button
                     key={style}
-                    onClick={() => setCitationStyle(style)}
+                    onClick={() => setPendingStyle(style)}
                     className="text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors"
-                    style={citationStyle === style
+                    style={pendingStyle === style
                       ? { backgroundColor: '#fb804a', color: '#fff' }
                       : { backgroundColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }
                     }
@@ -365,6 +366,17 @@ export function ChecklistSidebar() {
                     {style}
                   </button>
                 ))}
+                <button
+                  onClick={() => setCitationStyle(pendingStyle)}
+                  disabled={pendingStyle === citationStyle}
+                  className="ml-1 text-[10px] px-2 py-0.5 rounded-full font-semibold transition-all disabled:opacity-40"
+                  style={pendingStyle !== citationStyle
+                    ? { backgroundColor: '#a0ad6d', color: '#fff' }
+                    : { backgroundColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)' }
+                  }
+                >
+                  Apply
+                </button>
               </div>
             </div>
             {/* Bib list */}

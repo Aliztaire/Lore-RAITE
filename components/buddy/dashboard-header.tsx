@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { LayoutGrid, PenTool, Download, Network, TestTube2, Library, Plus } from 'lucide-react'
+import { LayoutGrid, PenTool, Network, TestTube2, Library, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ProjectSwitcher } from './project-switcher'
 import { UserProfile } from './user-profile'
@@ -9,11 +9,10 @@ import { useBuddyStore } from '@/lib/store'
 import type { ViewMode } from '@/lib/types'
 
 interface DashboardHeaderProps {
-  onExport?: () => void
   showProjectActions?: boolean
 }
 
-export function DashboardHeader({ onExport, showProjectActions = true }: DashboardHeaderProps) {
+export function DashboardHeader({ showProjectActions = true }: DashboardHeaderProps) {
   const { viewMode, setViewMode, getCurrentProject, setShowOnboarding } = useBuddyStore()
   const project = getCurrentProject()
 
@@ -74,15 +73,6 @@ export function DashboardHeader({ onExport, showProjectActions = true }: Dashboa
               ))}
             </div>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2 text-white/70 hover:text-white hover:bg-white/10 border border-white/20"
-              onClick={onExport}
-            >
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Export</span>
-            </Button>
           </>
         )}
         <UserProfile />

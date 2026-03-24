@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { FileText, BookOpen, UploadCloud, Layers, CheckCircle2, AlertCircle, Lightbulb, Trash2, ArrowRight, RefreshCw, Library, BookMarked } from 'lucide-react';
+import { FileText, BookOpen, UploadCloud, Layers, CheckCircle2, AlertCircle, Lightbulb, Trash2, ArrowRight, RefreshCw, Library, BookMarked, Eye } from 'lucide-react';
 import { useBuddyStore } from '@/lib/store';
 import type { Reference } from '@/lib/types';
 
-export function IntegratedLiteratureAnalyzer() {
+export function IntegratedLiteratureAnalyzer({ onPreview }: { onPreview?: () => void }) {
   const { getCurrentProject, setViewMode } = useBuddyStore();
   const project = getCurrentProject();
 
@@ -130,6 +130,15 @@ export function IntegratedLiteratureAnalyzer() {
               >
                 Edit Content First
               </button>
+              {onPreview && (
+                <button
+                  onClick={onPreview}
+                  className="mt-2 flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-full border transition-colors hover:opacity-80"
+                  style={{ backgroundColor: '#381d18', color: '#fff', borderColor: '#381d18' }}
+                >
+                  <Eye className="w-3.5 h-3.5" /> Preview Draft
+                </button>
+              )}
             </div>
           </div>
 

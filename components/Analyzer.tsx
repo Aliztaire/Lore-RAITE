@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
-import { ArrowRight, ArrowLeft, RefreshCw, UploadCloud, TestTube2, Activity, SplitSquareHorizontal, Plus, Trash2 } from 'lucide-react';
+import { ArrowRight, ArrowLeft, RefreshCw, UploadCloud, TestTube2, Activity, SplitSquareHorizontal, Plus, Trash2, Send, ChevronDown } from 'lucide-react';
+import { useBuddyStore } from '@/lib/store';
 
 type GroupConfig = {
   id: string;
@@ -35,6 +36,15 @@ export function Analyzer() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showSectionPicker, setShowSectionPicker] = useState(false);
+  const [selectedSectionId, setSelectedSectionId] = useState<string>('');
+  const [sendSuccess, setSendSuccess] = useState(false);
+
+  const { projects, currentProjectId, updateSection } = useBuddyStore();
+  const currentProject = projects.find(p => p.id === currentProjectId) || null;
+  const allSections = currentProject
+    ? [currentProject.outline.introduction, ...currentProject.outline.body, currentProject.outline.conclusion]
+    : [];
 
   const addGroup = () => setGroups(prev => [...prev, {
     id: Date.now().toString(),
@@ -129,6 +139,49 @@ export function Analyzer() {
     } catch (err: any) {
       setError(err.message || 'Failed to connect to backend.');
     } finally { setLoading(false); }
+  };
+
+  const buildResultsMarkdown = () => {
+    if (!result) return '';
+    const sig = result.significant
+      ? `The p-value (${result.p_value}) is below 0.05. We reject the null hypothesis — there is a statistically significant difference across the groups.`
+      : `The p-value (${result.p_value}) exceeds 0.05. We fail to reject the null hypothesis — no significant difference was found.`;
+
+    let md = `\n\n## Statistical Analysis Results\n\n`;
+    md += `**Test:** ${result.recommended_test}  \n`;
+    md += `**Test Statistic:** ${result.statistic}  \n`;
+    md += `**P-Value:** ${result.p_value}  \n`;
+    md += `**Result:** ${result.significant ? 'Statistically Significant (p < 0.05)' : 'Not Significant (p ≥ 0.05)'}  \n\n`;
+    md += `**Interpretation:** ${sig}\n`;
+
+    if (result.post_hoc?.length > 0 && result.significant) {
+      md += `\n### Post-Hoc Pairwise Comparisons\n\n`;
+      md += `| Group A | Group B | P-Value | Significance |\n`;
+      md += `|---------|---------|---------|---------------|\n`;
+      result.post_hoc.forEach((ph: any) => {
+        md += `| ${ph.A} | ${ph.B} | ${ph.p_value.toFixed(4)} | ${ph.p_value < 0.05 ? 'Significant' : 'Not sig.'} |\n`;
+      });
+    }
+
+    md += `\n### Data Quality Report\n\n`;
+    Object.entries(result.cleaning_report).forEach(([gName, gRep]: [string, any]) => {
+      md += `**${gName}:** ${gRep.initial_count} initial → ${gRep.final_count} final (removed: ${gRep.missing_removed} missing, ${gRep.criteria_removed} excluded, ${gRep.outliers_removed} outliers)  \n`;
+    });
+
+    return md;
+  };
+
+  const handleSendToSection = () => {
+    if (!selectedSectionId || !result) return;
+    const section = allSections.find(s => s.id === selectedSectionId);
+    if (!section) return;
+    const append = buildResultsMarkdown();
+    updateSection(selectedSectionId, { content: (section.content || '') + append });
+    setSendSuccess(true);
+    setTimeout(() => {
+      setShowSectionPicker(false);
+      setSendSuccess(false);
+    }, 1500);
   };
 
   return (
@@ -468,6 +521,65 @@ export function Analyzer() {
                 ))}
               </div>
             </div>
+
+            {/* Send to Writing */}
+            {currentProject && (
+              <div className="rounded-2xl border-2 p-5" style={{ borderColor: C.olive, background: C.oliveLt }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="font-semibold text-sm" style={{ color: C.brown }}>Export to Writing</p>
+                    <p className="text-xs mt-0.5" style={{ color: C.muted }}>Insert these results into a section of your paper draft.</p>
+                  </div>
+                  <button
+                    onClick={() => { setShowSectionPicker(v => !v); setSendSuccess(false); }}
+                    className="flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-full text-white transition-all hover:opacity-90"
+                    style={{ background: C.olive }}
+                  >
+                    <Send className="w-3.5 h-3.5" /> Send to Section
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showSectionPicker ? 'rotate-180' : ''}`} />
+                  </button>
+                </div>
+
+                {showSectionPicker && (
+                  <div className="mt-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: C.muted }}>Choose a section</p>
+                    <div className="space-y-1.5 mb-3 max-h-48 overflow-y-auto pr-1">
+                      {allSections.map(section => (
+                        <label key={section.id} className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border-2"
+                          style={{
+                            background: selectedSectionId === section.id ? '#fff' : 'transparent',
+                            borderColor: selectedSectionId === section.id ? C.olive : 'transparent',
+                          }}>
+                          <input
+                            type="radio"
+                            name="target-section"
+                            value={section.id}
+                            checked={selectedSectionId === section.id}
+                            onChange={() => setSelectedSectionId(section.id)}
+                            className="sr-only"
+                          />
+                          <div className="w-2 h-2 rounded-full shrink-0" style={{ background: selectedSectionId === section.id ? C.olive : '#d1d5db' }} />
+                          <span className="text-sm font-medium" style={{ color: C.brown }}>{section.title}</span>
+                          {section.content && (
+                            <span className="ml-auto text-[10px]" style={{ color: C.muted }}>
+                              {section.content.length > 0 ? 'has content' : ''}
+                            </span>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                    <button
+                      onClick={handleSendToSection}
+                      disabled={!selectedSectionId || sendSuccess}
+                      className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50"
+                      style={{ background: sendSuccess ? C.olive : C.brown }}
+                    >
+                      {sendSuccess ? '✓ Results added to section!' : 'Insert Results'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="flex justify-center pt-2">
               <button onClick={() => setStep(1)} className="flex items-center gap-2 text-sm font-semibold px-6 py-3 rounded-full border-2"

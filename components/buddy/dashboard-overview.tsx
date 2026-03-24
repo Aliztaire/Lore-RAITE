@@ -1,18 +1,22 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   CheckCircle2, Network, PenTool,
   Sparkles, ArrowRight,
-  BookOpen, FileText, Quote, Calendar, Mic, Library, TestTube2
+  BookOpen, FileText, Quote, Calendar, Mic, TestTube2, X, Loader2
 } from 'lucide-react'
 import { useBuddyStore } from '@/lib/store'
 import confetti from 'canvas-confetti'
 
 export function DashboardOverview() {
-  const { getCurrentProject, setViewMode, selectSection, setVoiceNotePanelOpen, isVoiceNotePanelOpen } = useBuddyStore()
+  const { getCurrentProject, setViewMode, selectSection, setVoiceNotePanelOpen, isVoiceNotePanelOpen, updateProject } = useBuddyStore()
   const project = getCurrentProject()
   const celebratedRef = useRef(false)
+  const [showCompleteModal, setShowCompleteModal] = useState(false)
+  const [paperName, setPaperName] = useState('')
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false)
 
   const allSections = project ? [
     project.outline.introduction,
@@ -56,6 +60,43 @@ export function DashboardOverview() {
       selectSection(nextIncompleteSection.id)
       setViewMode('writing')
     }
+  }
+
+  const openCompleteModal = () => {
+    setPaperName(project.title)
+    setSuggestions([])
+    setShowCompleteModal(true)
+    fetchSuggestions(project.title)
+  }
+
+  const fetchSuggestions = async (currentTitle: string) => {
+    setLoadingSuggestions(true)
+    try {
+      const res = await fetch('/api/suggest-title', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentTitle,
+          topic: project.topic,
+          sectionTitles: allSections.map(s => s.title),
+        }),
+      })
+      const data = await res.json()
+      setSuggestions(data.titles || [])
+    } catch {
+      setSuggestions([])
+    } finally {
+      setLoadingSuggestions(false)
+    }
+  }
+
+  const handleConfirmComplete = () => {
+    const name = paperName.trim() || project.title
+    if (name !== project.title) {
+      updateProject(project.id, { title: name, updatedAt: new Date().toISOString() })
+    }
+    setShowCompleteModal(false)
+    setViewMode('literature')
   }
 
   return (
@@ -136,23 +177,111 @@ export function DashboardOverview() {
               </div>
             </div>
 
-            {/* Wrap Up Research */}
+            {/* Complete */}
             <div className="relative group">
               <button
-                onClick={() => setViewMode('literature')}
+                onClick={openCompleteModal}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm hover:opacity-80 transition-all border"
                 style={{ backgroundColor: 'rgba(56,29,24,0.12)', color: '#381d18', borderColor: 'rgba(56,29,24,0.25)' }}
               >
-                <Library className="h-4 w-4" />
-                Wrap Up Research
+                <CheckCircle2 className="h-4 w-4" />
+                Complete
               </button>
               <div className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-2 w-52 rounded-xl bg-white/95 text-gray-700 text-xs px-3 py-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-20 text-center leading-relaxed">
-                Scan your paper for literature gaps and get suggestions to strengthen your RRL.
+                Finalize your paper title and scan for any remaining literature gaps.
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Complete Modal */}
+      {showCompleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(30,15,10,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-7 pt-7 pb-5 border-b border-gray-100 flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <CheckCircle2 className="h-5 w-5" style={{ color: '#a0ad6d' }} />
+                  <h2 className="font-serif text-xl font-bold" style={{ color: '#381d18' }}>Finalize Your Paper</h2>
+                </div>
+                <p className="text-sm" style={{ color: '#b0976a' }}>Confirm or update your paper's title before wrapping up.</p>
+              </div>
+              <button onClick={() => setShowCompleteModal(false)} className="p-1.5 rounded-full hover:bg-gray-100 transition-colors ml-4">
+                <X className="h-4 w-4 text-gray-400" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-7 py-6 space-y-5">
+              {/* Name input */}
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#b0976a' }}>Paper Title</label>
+                <input
+                  type="text"
+                  value={paperName}
+                  onChange={e => setPaperName(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border text-sm font-medium outline-none focus:ring-2"
+                  style={{ borderColor: '#ede9e3', color: '#381d18', background: '#fef5dd', focusRingColor: '#a0ad6d' } as React.CSSProperties}
+                  placeholder="Enter your paper title…"
+                />
+              </div>
+
+              {/* AI Suggestions */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles className="h-3.5 w-3.5" style={{ color: '#a0ad6d' }} />
+                  <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#b0976a' }}>AI Suggestions</span>
+                  {loadingSuggestions && <Loader2 className="h-3 w-3 animate-spin text-gray-300" />}
+                </div>
+
+                {loadingSuggestions ? (
+                  <div className="space-y-2">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="h-9 rounded-xl animate-pulse" style={{ background: '#f3f4f6' }} />
+                    ))}
+                  </div>
+                ) : suggestions.length > 0 ? (
+                  <div className="space-y-2">
+                    {suggestions.map((s, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setPaperName(s)}
+                        className="w-full text-left px-4 py-2.5 rounded-xl border-2 text-sm transition-all hover:-translate-y-0.5"
+                        style={{
+                          borderColor: paperName === s ? '#a0ad6d' : '#ede9e3',
+                          background: paperName === s ? '#f0f3e0' : '#fff',
+                          color: '#381d18',
+                        }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs" style={{ color: '#b0976a' }}>Could not load suggestions. You can still type a title above.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-7 pb-7 flex items-center gap-3 justify-end">
+              <button onClick={() => setShowCompleteModal(false)} className="px-5 py-2.5 rounded-full text-sm font-semibold border" style={{ borderColor: '#ede9e3', color: '#b0976a' }}>
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmComplete}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold text-white shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all"
+                style={{ background: '#381d18' }}
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Complete &amp; Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats bar + Research Structure */}
       <div className="flex-1 flex flex-col w-full px-8 pb-6 min-h-0">

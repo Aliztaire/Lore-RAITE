@@ -18,14 +18,98 @@ import {
   ChevronDown,
   ChevronUp,
   FileText,
+  Bold,
+  Italic,
+  Strikethrough,
+  List,
+  ListOrdered,
+  Quote,
+  Heading2,
+  Heading3,
+  Minus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import ReactMarkdown from "react-markdown";
 import { useBuddyStore } from "@/lib/store";
 import type { ChatMessage, Reference } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useEditor, EditorContent, NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import { Image as TiptapImage } from "@tiptap/extension-image";
+import Placeholder from "@tiptap/extension-placeholder";
+import { Markdown } from "tiptap-markdown";
+import { mergeAttributes } from "@tiptap/core";
+import type { NodeViewProps } from "@tiptap/react";
+
+// ─── Resizable Image Node ─────────────────────────────────────────────────────
+
+function ResizableImageComponent({ node, updateAttributes, selected }: NodeViewProps) {
+  const { src, alt, width } = node.attrs;
+  const handleRef = useRef<HTMLDivElement>(null);
+
+  const startResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = (handleRef.current?.parentElement?.clientWidth) || 300;
+
+    const onMove = (ev: MouseEvent) => {
+      const newWidth = Math.max(80, startWidth + (ev.clientX - startX));
+      updateAttributes({ width: newWidth });
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  return (
+    <NodeViewWrapper className="relative inline-block my-3" style={{ width: width ? `${width}px` : undefined }}>
+      <img
+        src={src}
+        alt={alt || ''}
+        style={{ width: '100%', borderRadius: 8, display: 'block', outline: selected ? '2px solid #a0ad6d' : undefined }}
+      />
+      <div
+        ref={handleRef}
+        onMouseDown={startResize}
+        style={{
+          position: 'absolute', bottom: 4, right: 4,
+          width: 14, height: 14,
+          background: '#a0ad6d',
+          borderRadius: 2,
+          cursor: 'nwse-resize',
+          opacity: selected ? 1 : 0,
+          transition: 'opacity 0.15s',
+        }}
+      />
+    </NodeViewWrapper>
+  );
+}
+
+const ResizableImage = TiptapImage.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: null,
+        parseHTML: el => el.getAttribute('width') ? Number(el.getAttribute('width')) : null,
+        renderHTML: attrs => attrs.width ? { width: attrs.width } : {},
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'img[src]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['img', mergeAttributes(HTMLAttributes)];
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(ResizableImageComponent);
+  },
+}).configure({ inline: false, allowBase64: true });
 
 // ─── APA 7 Formatting Helpers ─────────────────────────────────────────────────
 
@@ -212,16 +296,164 @@ export function WritingView() {
   } = useBuddyStore();
 
   const project = getCurrentProject();
+
+  // ── Selection tooltip for reference matching ─────────────────────────────────
+  const [selectionTooltip, setSelectionTooltip] = useState<{
+    text: string; x: number; y: number;
+  } | null>(null);
+  const [refMatchState, setRefMatchState] = useState<{
+    loading: boolean;
+    ref: Reference | null;
+    inserted: boolean;
+  }>({ loading: false, ref: null, inserted: false });
+  const editorWrapRef = useRef<HTMLDivElement>(null);
+  // Prevents onSelectionUpdate from dismissing tooltip while AI fetch is in flight
+  const isMatchingRef = useRef(false);
+
+  // ── TipTap rich-text editor ──────────────────────────────────────────────────
+  const editor = useEditor({
+    immediatelyRender: false,
+    extensions: [
+      StarterKit,
+      ResizableImage,
+      Markdown.configure({ html: true, transformPastedText: true }),
+      Placeholder.configure({
+        placeholder: 'Start writing your section here…\n\nTip: Ask the AI assistant to search for literature — references will be extracted and saved automatically.',
+      }),
+    ],
+    editorProps: {
+      attributes: {
+        class: 'outline-none min-h-full p-6 font-serif text-base leading-relaxed prose prose-stone max-w-none ' +
+          '[&_strong]:font-bold [&_em]:italic ' +
+          '[&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-6 [&_h1]:mb-2 ' +
+          '[&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2 ' +
+          '[&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-1 ' +
+          '[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2 ' +
+          '[&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2 ' +
+          '[&_blockquote]:border-l-4 [&_blockquote]:border-[#a0ad6d] [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-gray-500 ' +
+          '[&_img]:max-w-full [&_img]:rounded-lg [&_img]:my-3 ' +
+          '[&_hr]:my-4 [&_hr]:border-gray-200',
+      },
+      handleDOMEvents: {
+        keydown: (_view, e) => {
+          if (e.ctrlKey || e.metaKey) e.stopPropagation();
+          return false;
+        },
+        paste: (_view, e) => {
+          const items = Array.from(e.clipboardData?.items || []);
+          const imageItem = items.find(i => i.type.startsWith('image/'));
+          if (!imageItem) return false;
+          e.preventDefault();
+          const file = imageItem.getAsFile();
+          if (!file) return false;
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const src = ev.target?.result as string;
+            if (src) editor?.chain().focus().setImage({ src }).run();
+          };
+          reader.readAsDataURL(file);
+          return true;
+        },
+      },
+    },
+    onUpdate: ({ editor }) => {
+      if (!selectedSectionId) return;
+      const md = editor.storage.markdown.getMarkdown();
+      updateSection(selectedSectionId, { content: md });
+    },
+    onSelectionUpdate: ({ editor }) => {
+      // Don't dismiss tooltip while AI fetch is in flight or result is showing
+      if (isMatchingRef.current) return;
+      const { from, to } = editor.state.selection;
+      if (from === to) {
+        setSelectionTooltip(null);
+        setRefMatchState({ loading: false, ref: null, inserted: false });
+        return;
+      }
+      const text = editor.state.doc.textBetween(from, to, ' ').trim();
+      if (text.length < 10) {
+        setSelectionTooltip(null);
+        return;
+      }
+      const coords = editor.view.coordsAtPos(to);
+      const wrapRect = editorWrapRef.current?.getBoundingClientRect();
+      if (!wrapRect) return;
+      setRefMatchState({ loading: false, ref: null, inserted: false });
+      setSelectionTooltip({
+        text,
+        x: coords.left - wrapRect.left,
+        y: coords.top - wrapRect.top - 48,
+      });
+    },
+  });
+
+  // Sync editor when section changes
+  useEffect(() => {
+    if (!editor) return;
+    const md = currentSection?.content || '';
+    // Only reset if the content actually differs to avoid cursor jumping
+    const current = editor.storage.markdown.getMarkdown();
+    if (current !== md) {
+      editor.commands.setContent(md);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSectionId, editor]);
+
   const [chatInput, setChatInput] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [showReferenceForm, setShowReferenceForm] = useState(false);
   const [expandedRefId, setExpandedRefId] = useState<string | null>(null);
   const [refsOpen, setRefsOpen] = useState(true);
   const [citationStyle, setCitationStyle] = useState<"APA" | "MLA" | "Chicago">("APA");
+  const [pendingStyle, setPendingStyle] = useState<"APA" | "MLA" | "Chicago">("APA");
+  const [refFilter, setRefFilter] = useState<'all' | string>('all');
   const [chatHeight, setChatHeight] = useState(288);
-  const editorRef = useRef<HTMLTextAreaElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const isResizingChat = useRef(false);
+
+  const findMatchingReference = useCallback(async () => {
+    if (!selectionTooltip || !project) return;
+    const allRefs = [
+      ...(project.outline.introduction.references || []),
+      ...project.outline.body.flatMap(s => s.references || []),
+      ...(project.outline.conclusion.references || []),
+    ];
+    if (allRefs.length === 0) return;
+    isMatchingRef.current = true;
+    setRefMatchState({ loading: true, ref: null, inserted: false });
+    try {
+      const res = await fetch('/api/find-reference', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selectedText: selectionTooltip.text, references: allRefs }),
+      });
+      const { referenceId } = await res.json();
+      const matched = allRefs.find(r => r.id === referenceId) || null;
+      setRefMatchState({ loading: false, ref: matched, inserted: false });
+    } catch {
+      setRefMatchState({ loading: false, ref: null, inserted: false });
+      isMatchingRef.current = false;
+    }
+  }, [selectionTooltip, project]);
+
+  const insertCitationAtSelection = useCallback(() => {
+    if (!editor || !refMatchState.ref) return;
+    const ref = refMatchState.ref;
+    const citation = formatCitation(ref, citationStyle);
+    // Insert a short inline citation after the selection
+    const authorPart = ref.authors?.[0]
+      ? ref.authors[0].trim().split(/\s+/).at(-1)
+      : 'Unknown';
+    const year = ref.year ?? 'n.d.';
+    const inline = ` (${authorPart}, ${year})`;
+    const { to } = editor.state.selection;
+    editor.chain().focus().insertContentAt(to, inline).run();
+    setRefMatchState(s => ({ ...s, inserted: true }));
+    setTimeout(() => {
+      isMatchingRef.current = false;
+      setSelectionTooltip(null);
+    }, 800);
+  }, [editor, refMatchState.ref, citationStyle]);
 
   const startChatResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -408,31 +640,18 @@ export function WritingView() {
     if (selectedSectionId) updateSection(selectedSectionId, { content });
   };
 
-  const handleEditorPaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = Array.from(e.clipboardData.items)
-    const imageItem = items.find(item => item.type.startsWith('image/'))
-    if (!imageItem) return
-    e.preventDefault()
-    const file = imageItem.getAsFile()
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string
-      const textarea = editorRef.current
-      if (!textarea) return
-      const start = textarea.selectionStart
-      const end = textarea.selectionEnd
-      const current = currentSection?.content || ''
-      const inserted = `\n![image](${dataUrl})\n`
-      const newContent = current.slice(0, start) + inserted + current.slice(end)
-      handleContentChange(newContent)
-      // restore cursor after the inserted markdown
-      requestAnimationFrame(() => {
-        textarea.selectionStart = textarea.selectionEnd = start + inserted.length
-      })
-    }
-    reader.readAsDataURL(file)
-  }, [currentSection, editorRef]);
+  // Toolbar actions wired to TipTap commands
+  const fmt = {
+    bold:        () => editor?.chain().focus().toggleBold().run(),
+    italic:      () => editor?.chain().focus().toggleItalic().run(),
+    strike:      () => editor?.chain().focus().toggleStrike().run(),
+    h2:          () => editor?.chain().focus().toggleHeading({ level: 2 }).run(),
+    h3:          () => editor?.chain().focus().toggleHeading({ level: 3 }).run(),
+    bullet:      () => editor?.chain().focus().toggleBulletList().run(),
+    ordered:     () => editor?.chain().focus().toggleOrderedList().run(),
+    blockquote:  () => editor?.chain().focus().toggleBlockquote().run(),
+    divider:     () => editor?.chain().focus().setHorizontalRule().run(),
+  };
 
   const handleSendMessage = () => {
     if (!chatInput.trim() || !selectedSectionId || isLoading) return;
@@ -492,6 +711,21 @@ export function WritingView() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
+  const allSections = project
+    ? [project.outline.introduction, ...project.outline.body, project.outline.conclusion]
+    : [];
+
+  const allRefsMap = new Map<string, Reference>();
+  for (const sec of allSections) {
+    for (const ref of sec.references) {
+      const key = ref.doi || ref.title;
+      if (!allRefsMap.has(key)) allRefsMap.set(key, ref);
+    }
+  }
+  const displayedRefs = refFilter === 'all'
+    ? Array.from(allRefsMap.values())
+    : (allSections.find(s => s.id === refFilter)?.references ?? []);
+
   return (
     <div className="flex-1 flex overflow-hidden h-full min-h-0">
       {/* ── References Sidebar ─────────────────────────────────────────────── */}
@@ -499,40 +733,72 @@ export function WritingView() {
         className="border-r border-border flex flex-col shrink-0 h-full min-h-0 transition-all duration-200"
         style={{ width: refsOpen ? '18rem' : '2.5rem' }}
       >
-        {refsOpen ? (
-        <div className="p-4 border-b border-white/20 shrink-0" style={{ backgroundColor: '#381d18' }}>
-          <div className="flex items-center justify-between mb-1">
-            <h3 className="font-medium text-sm flex items-center gap-2 text-white">
-              <BookMarked className="h-4 w-4 text-white" />
-              References
-            </h3>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-white hover:bg-white/20"
-                onClick={() => setShowReferenceForm(true)}
+        {refsOpen ? (() => {
+          return (
+          <div className="flex flex-col shrink-0" style={{ backgroundColor: '#381d18' }}>
+            {/* Top bar */}
+            <div className="px-4 pt-4 pb-2">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="font-medium text-sm flex items-center gap-2 text-white">
+                  <BookMarked className="h-4 w-4 text-white" />
+                  References
+                </h3>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-white hover:bg-white/20"
+                    onClick={() => setShowReferenceForm(true)}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-white hover:bg-white/20"
+                    onClick={() => setRefsOpen(false)}
+                    title="Collapse references"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <p className="text-xs text-white/60">
+                {displayedRefs.length} {displayedRefs.length === 1 ? 'source' : 'sources'}
+                {refFilter === 'all' ? ' · all sections' : ' · this section'}
+              </p>
+            </div>
+
+            {/* Filter tabs */}
+            <div className="px-3 pb-3 flex flex-wrap gap-1">
+              <button
+                onClick={() => setRefFilter('all')}
+                className="px-2.5 py-1 rounded-full text-[10px] font-semibold transition-colors"
+                style={refFilter === 'all'
+                  ? { backgroundColor: '#a0ad6d', color: '#fff' }
+                  : { backgroundColor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)' }
+                }
               >
-                <Plus className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-white hover:bg-white/20"
-                onClick={() => setRefsOpen(false)}
-                title="Collapse references"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
+                All
+              </button>
+              {allSections.map(sec => (
+                <button
+                  key={sec.id}
+                  onClick={() => setRefFilter(sec.id)}
+                  className="px-2.5 py-1 rounded-full text-[10px] font-semibold transition-colors truncate max-w-32"
+                  style={refFilter === sec.id
+                    ? { backgroundColor: '#fb804a', color: '#fff' }
+                    : { backgroundColor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)' }
+                  }
+                  title={sec.title}
+                >
+                  {sec.title}
+                </button>
+              ))}
             </div>
           </div>
-          <p className="text-xs text-white/70">
-            {currentSection.references.length}{" "}
-            {currentSection.references.length === 1 ? "source" : "sources"}
-            {" · "}auto-saved
-          </p>
-        </div>
-        ) : (
+          );
+        })() : (
           <button
             onClick={() => setRefsOpen(true)}
             className="flex-1 flex items-center justify-center hover:bg-white/10 transition-colors"
@@ -545,7 +811,7 @@ export function WritingView() {
 
         {/* Body — white, only when open */}
         {refsOpen && <div className="flex-1 overflow-y-auto p-2 space-y-2" style={{ backgroundColor: '#ffffff' }}>
-          {currentSection.references.length === 0 ? (
+          {displayedRefs.length === 0 ? (
             <div className="text-xs text-muted-foreground text-center py-8 px-3 space-y-2">
               <FileText className="h-8 w-8 mx-auto opacity-30" />
               <p className="font-medium">No references yet</p>
@@ -555,7 +821,7 @@ export function WritingView() {
               </p>
             </div>
           ) : (
-            currentSection.references.map((ref) => (
+            displayedRefs.map((ref) => (
               <div
                 key={ref.id}
                 className="rounded-lg bg-white border border-border text-xs transition-colors overflow-hidden"
@@ -650,6 +916,34 @@ export function WritingView() {
           )}
         </div>}
 
+        {/* Citation style selector */}
+        {refsOpen && (
+          <div className="shrink-0 border-t border-border px-3 py-2.5 flex items-center gap-2" style={{ backgroundColor: '#fef5dd' }}>
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mr-1">Format</span>
+            {(['APA', 'MLA', 'Chicago'] as const).map(style => (
+              <button
+                key={style}
+                onClick={() => setPendingStyle(style)}
+                className="px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-all"
+                style={pendingStyle === style
+                  ? { backgroundColor: '#381d18', color: '#fff', borderColor: '#381d18' }
+                  : { backgroundColor: '#fff', color: '#381d18', borderColor: '#ede9e3' }
+                }
+              >
+                {style === 'APA' ? 'APA 7' : style === 'MLA' ? 'MLA 9' : 'Chicago'}
+              </button>
+            ))}
+            <button
+              onClick={() => setCitationStyle(pendingStyle)}
+              disabled={pendingStyle === citationStyle}
+              className="ml-auto px-3 py-1 rounded-full text-[10px] font-semibold transition-all disabled:opacity-40"
+              style={{ backgroundColor: pendingStyle !== citationStyle ? '#a0ad6d' : '#e5e7eb', color: pendingStyle !== citationStyle ? '#fff' : '#9ca3af' }}
+            >
+              Apply
+            </button>
+          </div>
+        )}
+
         {/* Manual add-reference form */}
         {refsOpen && showReferenceForm && (
           <div className="p-3 border-t border-border shrink-0" style={{ backgroundColor: '#fef5dd' }}>
@@ -715,21 +1009,151 @@ export function WritingView() {
             </div>
           </div>
           <span className="text-xs text-white/70">
-            {currentSection.content?.split(/\s+/).filter(Boolean).length || 0}{" "}
-            words
+            {currentSection.content?.split(/\s+/).filter(Boolean).length || 0}{" "}words
           </span>
         </div>
 
-        {/* Text editor */}
-        <div className="flex-1 p-6 overflow-y-auto" style={{ backgroundColor: '#ffffff' }}>
-          <Textarea
-            ref={editorRef}
-            value={currentSection.content || ""}
-            onChange={(e) => handleContentChange(e.target.value)}
-            onPaste={handleEditorPaste}
-            placeholder={`Start writing your ${currentSection.title.toLowerCase()} here…\n\nTip: Ask the AI assistant to search for literature — references will be extracted and saved automatically.`}
-            className="w-full h-full min-h-[400px] resize-none bg-transparent border-0 focus-visible:ring-0 text-base leading-relaxed font-serif"
-          />
+        {/* Formatting toolbar */}
+        <div className="shrink-0 border-b border-border flex items-center gap-0.5 px-3 py-1.5 flex-wrap" style={{ backgroundColor: '#fafaf8' }}>
+          {([
+            { icon: <Bold className="h-3.5 w-3.5" />, title: 'Bold', action: fmt.bold, active: editor?.isActive('bold') },
+            { icon: <Italic className="h-3.5 w-3.5" />, title: 'Italic', action: fmt.italic, active: editor?.isActive('italic') },
+            { icon: <Strikethrough className="h-3.5 w-3.5" />, title: 'Strikethrough', action: fmt.strike, active: editor?.isActive('strike') },
+          ] as const).map(({ icon, title, action, active }) => (
+            <button key={title} title={title} onClick={action}
+              className="p-1.5 rounded transition-colors"
+              style={{ backgroundColor: active ? '#ede9e3' : 'transparent', color: active ? '#381d18' : '#6b7280' }}>
+              {icon}
+            </button>
+          ))}
+          <div className="w-px h-4 bg-gray-200 mx-1" />
+          {([
+            { icon: <Heading2 className="h-3.5 w-3.5" />, title: 'Heading 2', action: fmt.h2, active: editor?.isActive('heading', { level: 2 }) },
+            { icon: <Heading3 className="h-3.5 w-3.5" />, title: 'Heading 3', action: fmt.h3, active: editor?.isActive('heading', { level: 3 }) },
+          ] as const).map(({ icon, title, action, active }) => (
+            <button key={title} title={title} onClick={action}
+              className="p-1.5 rounded transition-colors"
+              style={{ backgroundColor: active ? '#ede9e3' : 'transparent', color: active ? '#381d18' : '#6b7280' }}>
+              {icon}
+            </button>
+          ))}
+          <div className="w-px h-4 bg-gray-200 mx-1" />
+          {([
+            { icon: <List className="h-3.5 w-3.5" />, title: 'Bullet list', action: fmt.bullet, active: editor?.isActive('bulletList') },
+            { icon: <ListOrdered className="h-3.5 w-3.5" />, title: 'Numbered list', action: fmt.ordered, active: editor?.isActive('orderedList') },
+            { icon: <Quote className="h-3.5 w-3.5" />, title: 'Blockquote', action: fmt.blockquote, active: editor?.isActive('blockquote') },
+            { icon: <Minus className="h-3.5 w-3.5" />, title: 'Divider', action: fmt.divider, active: false },
+          ] as const).map(({ icon, title, action, active }) => (
+            <button key={title} title={title} onClick={action}
+              className="p-1.5 rounded transition-colors"
+              style={{ backgroundColor: active ? '#ede9e3' : 'transparent', color: active ? '#381d18' : '#6b7280' }}>
+              {icon}
+            </button>
+          ))}
+        </div>
+
+        {/* Rich-text editor */}
+        <div
+          ref={editorWrapRef}
+          className="flex-1 overflow-y-auto tiptap-editor relative"
+          style={{ backgroundColor: '#ffffff' }}
+        >
+          <EditorContent editor={editor} className="h-full" />
+
+          {/* ── Selection reference tooltip ── */}
+          {selectionTooltip && (
+            <div
+              className="absolute z-50 shadow-xl rounded-xl border border-border overflow-hidden"
+              style={{
+                left: Math.max(8, Math.min(selectionTooltip.x, (editorWrapRef.current?.clientWidth ?? 600) - 280)),
+                top: Math.max(8, selectionTooltip.y),
+                width: 272,
+                backgroundColor: '#1c1008',
+              }}
+              onMouseDown={e => { e.preventDefault(); e.stopPropagation(); }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
+                <span className="text-[11px] font-semibold text-white/80 tracking-wide uppercase">Find Reference</span>
+                <button
+                  onClick={() => { isMatchingRef.current = false; setSelectionTooltip(null); setRefMatchState({ loading: false, ref: null, inserted: false }); }}
+                  className="text-white/50 hover:text-white transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              {/* Selected text preview */}
+              <div className="px-3 py-2 border-b border-white/10">
+                <p className="text-[10px] text-white/50 mb-0.5">Selected text</p>
+                <p className="text-xs text-white/80 italic line-clamp-2">"{selectionTooltip.text}"</p>
+              </div>
+
+              {/* Action area */}
+              <div className="px-3 py-2.5 space-y-2">
+                {!refMatchState.ref && !refMatchState.loading && (
+                  <button
+                    onClick={findMatchingReference}
+                    className="w-full py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5"
+                    style={{ backgroundColor: '#a0ad6d', color: '#fff' }}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Find Best Match
+                  </button>
+                )}
+
+                {refMatchState.loading && (
+                  <div className="flex items-center gap-2 py-1.5 justify-center">
+                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#a0ad6d] border-t-transparent" />
+                    <span className="text-[11px] text-white/60">Searching references…</span>
+                  </div>
+                )}
+
+                {refMatchState.ref && !refMatchState.inserted && (
+                  <>
+                    <div className="rounded-lg p-2 space-y-0.5" style={{ backgroundColor: 'rgba(255,255,255,0.07)' }}>
+                      <p className="text-[10px] text-[#a0ad6d] font-semibold uppercase tracking-wide">Best match</p>
+                      <p className="text-[11px] text-white leading-snug line-clamp-3">{refMatchState.ref.title}</p>
+                      <p className="text-[10px] text-white/50">
+                        {refMatchState.ref.authors?.[0] && `${refMatchState.ref.authors[0].trim().split(/\s+/).at(-1)} `}
+                        {refMatchState.ref.year && `(${refMatchState.ref.year})`}
+                      </p>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={findMatchingReference}
+                        className="flex-1 py-1.5 rounded-lg text-[11px] font-medium transition-all"
+                        style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}
+                      >
+                        Try again
+                      </button>
+                      <button
+                        onClick={insertCitationAtSelection}
+                        className="flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all"
+                        style={{ backgroundColor: '#a0ad6d', color: '#fff' }}
+                      >
+                        Insert Citation
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {refMatchState.inserted && (
+                  <p className="text-center text-[11px] text-[#a0ad6d] font-semibold py-1">✓ Citation inserted!</p>
+                )}
+
+                {!refMatchState.loading && !refMatchState.ref && !refMatchState.inserted && (
+                  <p className="text-[10px] text-white/40 text-center">
+                    AI will match from {[
+                      project?.outline.introduction.references?.length ?? 0,
+                      ...(project?.outline.body.map(s => s.references?.length ?? 0) ?? []),
+                      project?.outline.conclusion.references?.length ?? 0,
+                    ].reduce((a, b) => a + b, 0)} references in this project
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── AI Chat Panel ─────────────────────────────────────────────────── */}
@@ -760,7 +1184,7 @@ export function WritingView() {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
             {messages.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-4">
                 Ask questions about your writing, or ask me to{" "}
@@ -780,29 +1204,43 @@ export function WritingView() {
               messages.map((msg) => (
                 <div
                   key={msg.id}
-                  className={cn("max-w-[80%] p-3 rounded-lg text-sm")}
+                  className={cn(
+                    "px-4 py-3 rounded-xl text-sm",
+                    msg.role === "user" ? "max-w-[80%] ml-auto" : "w-full"
+                  )}
                   style={msg.role === "user"
-                    ? { backgroundColor: '#ffffff', color: '#381d18', marginLeft: 'auto', border: '1px solid #e5e7eb' }
-                    : { backgroundColor: '#fff3e0', color: '#381d18' }
+                    ? { backgroundColor: '#ffffff', color: '#381d18', border: '1px solid #e5e7eb' }
+                    : { backgroundColor: '#fff8ee', color: '#381d18', border: '1px solid #ede9e3' }
                   }
                 >
                   {(msg.parts as any[])?.map((part: any, i: number) => {
                     if (part.type === "text") {
                       return (
-                        <div key={i} className="prose prose-sm max-w-none leading-relaxed [&_strong]:font-bold [&_em]:italic [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_p]:mb-1.5 [&_p:last-child]:mb-0">
+                        <div
+                          key={i}
+                          className="prose prose-sm max-w-none leading-relaxed
+                            [&_strong]:font-semibold [&_strong]:text-[#381d18]
+                            [&_em]:italic
+                            [&_h1]:text-sm [&_h1]:font-bold [&_h1]:mt-3 [&_h1]:mb-1 [&_h1]:text-[#381d18]
+                            [&_h2]:text-sm [&_h2]:font-bold [&_h2]:mt-3 [&_h2]:mb-1 [&_h2]:text-[#381d18]
+                            [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 [&_h3]:text-[#381d18]
+                            [&_p]:mb-2 [&_p:last-child]:mb-0
+                            [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2 [&_ul]:space-y-1.5
+                            [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2 [&_ol]:space-y-1.5
+                            [&_li]:leading-snug [&_li]:text-[#381d18]
+                            [&_li>strong]:block [&_li>strong]:mb-0.5
+                            [&_a]:text-blue-600 [&_a]:underline
+                            [&_hr]:my-3 [&_hr]:border-[#ede9e3]
+                            [&_blockquote]:border-l-2 [&_blockquote]:border-[#a0ad6d] [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-[#b0976a]"
+                        >
                           <ReactMarkdown>{part.text}</ReactMarkdown>
                         </div>
                       );
                     }
                     if (part.type === "tool-search_scholarly_articles") {
-                      const count = Array.isArray(part.output)
-                        ? part.output.length
-                        : 0;
+                      const count = Array.isArray(part.output) ? part.output.length : 0;
                       return (
-                        <div
-                          key={i}
-                          className="flex items-center gap-2 text-xs opacity-70 my-1"
-                        >
+                        <div key={i} className="flex items-center gap-2 text-xs my-1.5 px-2 py-1.5 rounded-md" style={{ backgroundColor: '#f0f3e0', color: '#a0ad6d' }}>
                           <BookMarked className="h-3 w-3 shrink-0" />
                           {part.state === "output-available"
                             ? `Retrieved ${count} reference${count !== 1 ? "s" : ""} from OpenAlex — added to References panel`
