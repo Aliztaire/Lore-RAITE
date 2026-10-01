@@ -5,6 +5,7 @@ import { LayoutGrid, PenTool, Network, TestTube2, Library, Plus } from 'lucide-r
 import { Button } from '@/components/ui/button'
 import { ProjectSwitcher } from './project-switcher'
 import { UserProfile } from './user-profile'
+import { InstallAppButton } from './install-app-button'
 import { useBuddyStore } from '@/lib/store'
 import type { ViewMode } from '@/lib/types'
 
@@ -75,6 +76,7 @@ export function DashboardHeader({ showProjectActions = true }: DashboardHeaderPr
 
           </>
         )}
+        <InstallAppButton />
         <UserProfile />
       </div>
     </header>

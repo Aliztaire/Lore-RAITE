@@ -127,7 +127,7 @@ export function Analyzer() {
           return isNaN(p) ? null : p;
         });
       });
-      const res = await fetch('http://localhost:8000/analyze', {
+      const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ groups: payloadGroups, criteria_min: criteriaMin ? parseFloat(criteriaMin) : null, criteria_max: criteriaMax ? parseFloat(criteriaMax) : null, purpose }),

@@ -1,8 +1,8 @@
 'use client'
 
 import { useAuth } from '@/components/auth-provider'
-const signOut = async (_: unknown) => { /* bypassed */ }
-const auth = {} as any
+import { auth } from '@/lib/firebase'
+import { signOut } from 'firebase/auth'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,

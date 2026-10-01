@@ -61,13 +61,13 @@ export function IntegratedLiteratureAnalyzer({ onPreview }: { onPreview?: () => 
     formData.append("reference_dois", doisAndCitations);
 
     try {
-      const response = await fetch('http://localhost:8000/analyze-literature', { method: 'POST', body: formData });
+      const response = await fetch('/api/analyze-literature', { method: 'POST', body: formData });
       if (!response.ok) throw new Error(`Server error: ${response.status}`);
       const data = await response.json();
       if (data.error) throw new Error(data.error);
       setResult(data);
     } catch (err: any) {
-      setError(err.message || "Failed to analyze literature. Ensure your Python backend is running.");
+      setError(err.message || "Failed to analyze literature.");
     } finally {
       setLoading(false);
     }

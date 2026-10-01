@@ -35,6 +35,9 @@ interface BuddyStore {
   // Voice Notes
   voiceNotes: VoiceNote[]
   isVoiceNotePanelOpen: boolean
+  // Set briefly by a quick-capture deep link (?quickCapture=voice) to auto-start
+  // recording once the voice note panel opens; consumer resets it after use.
+  autoStartRecording: boolean
 
   // Actions
   createProject: (title: string, topic: string) => Project
@@ -57,8 +60,11 @@ interface BuddyStore {
 
   // Voice Note actions
   addVoiceNote: (content: string, tag?: VoiceNote['tag']) => void
+  addPendingVoiceNote: (audioBase64: string, tag?: VoiceNote['tag']) => string
+  markVoiceNoteTranscribed: (id: string, content: string) => void
   removeVoiceNote: (id: string) => void
   updateVoiceNote: (id: string, content: string, tag?: VoiceNote['tag']) => void
+  setAutoStartRecording: (on: boolean) => void
   
   // Canvas actions
   addNode: (node: CanvasNode) => void
@@ -224,6 +230,7 @@ export const useBuddyStore = create<BuddyStore>()(
       sectionChats: {},
       voiceNotes: [],
       isVoiceNotePanelOpen: false,
+      autoStartRecording: false,
       
       createProject: (title, topic) => {
         const outline = createDefaultOutline()
@@ -314,6 +321,23 @@ export const useBuddyStore = create<BuddyStore>()(
         voiceNotes: [{ id: generateId(), content, tag, createdAt: new Date().toISOString() }, ...state.voiceNotes]
       })),
 
+      addPendingVoiceNote: (audioBase64, tag) => {
+        const id = generateId()
+        set(state => ({
+          voiceNotes: [{
+            id, content: '', tag, createdAt: new Date().toISOString(),
+            transcriptionStatus: 'pending', pendingAudioBase64: audioBase64,
+          }, ...state.voiceNotes]
+        }))
+        return id
+      },
+
+      markVoiceNoteTranscribed: (id, content) => set(state => ({
+        voiceNotes: state.voiceNotes.map(n =>
+          n.id === id ? { ...n, content, transcriptionStatus: 'done', pendingAudioBase64: undefined } : n
+        )
+      })),
+
       removeVoiceNote: (id) => set(state => ({
         voiceNotes: state.voiceNotes.filter(n => n.id !== id)
       })),
@@ -321,6 +345,8 @@ export const useBuddyStore = create<BuddyStore>()(
       updateVoiceNote: (id, content, tag) => set(state => ({
         voiceNotes: state.voiceNotes.map(n => n.id === id ? { ...n, content, tag } : n)
       })),
+
+      setAutoStartRecording: (on) => set({ autoStartRecording: on }),
 
       addNode: (node) => {
         const project = get().getCurrentProject()
@@ -640,7 +666,7 @@ export const useBuddyStore = create<BuddyStore>()(
       name: 'buddy-storage',
       // Only persist non-user data or handle user-specific persistence
       partialize: (state) => {
-        const { projects, currentProjectId, userId, globalChat, sectionChats, ...rest } = state
+        const { projects, currentProjectId, userId, globalChat, sectionChats, autoStartRecording, ...rest } = state
         return rest
       }
     }

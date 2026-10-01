@@ -16,15 +16,18 @@ import { exportToDocx, downloadBlob } from '@/lib/export'
 import { DocumentPreviewModal } from '@/components/buddy/document-preview-modal'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/auth-provider'
+import { useSyncPendingVoiceNotes } from '@/hooks/use-sync-pending-voice-notes'
 
 export default function BuddyApp() {
-  const { showOnboarding, viewMode, getCurrentProject, projects, focusMode } = useBuddyStore()
+  const { showOnboarding, viewMode, getCurrentProject, projects, focusMode, setVoiceNotePanelOpen, setAutoStartRecording } = useBuddyStore()
   const project = getCurrentProject()
   const [isHydrated, setIsHydrated] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
 
   const { user, loading } = useAuth()
   const router = useRouter()
+
+  useSyncPendingVoiceNotes()
 
   // Handle hydration mismatch with localStorage
   useEffect(() => {
@@ -37,6 +40,20 @@ export default function BuddyApp() {
       router.push('/login')
     }
   }, [user, loading, router, isHydrated])
+
+  // Quick-capture deep link from the PWA manifest's "New Voice Note" shortcut
+  // (?quickCapture=voice). If there's no project yet, the flags still land —
+  // VoiceNoteTaker picks them up once a project exists and the panel mounts.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('quickCapture') !== 'voice') return
+    setVoiceNotePanelOpen(true)
+    setAutoStartRecording(true)
+    params.delete('quickCapture')
+    const query = params.toString()
+    window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleExport = async () => {
     if (!project) return

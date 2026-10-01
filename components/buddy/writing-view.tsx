@@ -27,6 +27,8 @@ import {
   Heading2,
   Heading3,
   Minus,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +36,8 @@ import ReactMarkdown from "react-markdown";
 import { useBuddyStore } from "@/lib/store";
 import type { ChatMessage, Reference } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { stripMarkup } from "@/lib/strip-markup";
+import { useTextToSpeech } from "@/hooks/use-text-to-speech";
 import { useEditor, EditorContent, NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Image as TiptapImage } from "@tiptap/extension-image";
@@ -515,6 +519,15 @@ export function WritingView() {
   }, [project, selectedSectionId]);
 
   const currentSection = getCurrentSection();
+
+  const { speak: speakSection, stop: stopSpeakingSection, isSpeaking: isSpeakingSection, isSupported: ttsSupported } = useTextToSpeech();
+  const toggleReadSectionAloud = () => {
+    if (isSpeakingSection) {
+      stopSpeakingSection();
+      return;
+    }
+    speakSection(stripMarkup(currentSection?.content || ""));
+  };
 
   // ── useChat ──────────────────────────────────────────────────────────────────
 
@@ -1003,9 +1016,21 @@ export function WritingView() {
               </p>
             </div>
           </div>
-          <span className="text-xs text-white/70">
-            {currentSection.content?.split(/\s+/).filter(Boolean).length || 0}{" "}words
-          </span>
+          <div className="flex items-center gap-3">
+            {ttsSupported && (
+              <button
+                onClick={toggleReadSectionAloud}
+                disabled={!currentSection.content?.trim()}
+                className="text-white/70 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                title={isSpeakingSection ? "Stop reading" : "Read section aloud"}
+              >
+                {isSpeakingSection ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              </button>
+            )}
+            <span className="text-xs text-white/70">
+              {currentSection.content?.split(/\s+/).filter(Boolean).length || 0}{" "}words
+            </span>
+          </div>
         </div>
 
         {/* Formatting toolbar */}

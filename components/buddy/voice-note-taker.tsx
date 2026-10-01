@@ -1,12 +1,31 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { Mic, Square, Loader2, Save, Trash2, X, Pencil, Search, Plus } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Mic, Square, Loader2, Save, Trash2, X, Pencil, Search, Plus, Volume2, VolumeX, WifiOff, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useBuddyStore } from '@/lib/store'
+import { useTextToSpeech } from '@/hooks/use-text-to-speech'
 import { cn } from '@/lib/utils'
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
+
+function base64ToBlob(dataUrl: string): Blob {
+  const [header, data] = dataUrl.split(',')
+  const mime = header.match(/data:(.*);base64/)?.[1] || 'audio/webm'
+  const binary = atob(data)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return new Blob([bytes], { type: mime })
+}
 
 const PRESET_TAGS = ['Idea', 'To-Do', 'Source']
 
@@ -105,7 +124,13 @@ function TagSelector({
 }
 
 export function VoiceNoteTaker() {
-  const { isVoiceNotePanelOpen, setVoiceNotePanelOpen, voiceNotes, addVoiceNote, removeVoiceNote, updateVoiceNote } = useBuddyStore()
+  const {
+    isVoiceNotePanelOpen, setVoiceNotePanelOpen, voiceNotes, addVoiceNote, removeVoiceNote, updateVoiceNote,
+    addPendingVoiceNote, markVoiceNoteTranscribed, autoStartRecording, setAutoStartRecording,
+  } = useBuddyStore()
+  const { speak, stop: stopSpeaking, isSpeaking, isSupported: ttsSupported } = useTextToSpeech()
+  const [speakingNoteId, setSpeakingNoteId] = useState<string | null>(null)
+  const [retryingNoteId, setRetryingNoteId] = useState<string | null>(null)
 
   const [isRecording, setIsRecording] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
@@ -157,6 +182,16 @@ export function VoiceNoteTaker() {
     }
   }
 
+  // Deep-link quick-capture (?quickCapture=voice) auto-starts recording once
+  // the panel is open.
+  useEffect(() => {
+    if (autoStartRecording && isVoiceNotePanelOpen) {
+      setAutoStartRecording(false)
+      startRecording()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStartRecording, isVoiceNotePanelOpen])
+
   const transcribeAudio = async (audioBlob: Blob) => {
     setIsTranscribing(true)
     try {
@@ -172,11 +207,58 @@ export function VoiceNoteTaker() {
       }
     } catch (err) {
       console.error(err)
-      setError('Transcription failed. Please try again.')
+      if (!navigator.onLine) {
+        // Offline — queue the raw audio instead of losing the thought. A
+        // background sync hook (and the manual retry button) transcribe it
+        // once the connection is back.
+        try {
+          const base64 = await blobToBase64(audioBlob)
+          addPendingVoiceNote(base64, selectedTag)
+          setCurrentText('')
+          setSelectedTag(undefined)
+          if (audioUrl) { URL.revokeObjectURL(audioUrl); setAudioUrl(null) }
+        } catch {
+          setError('Could not save the recording for later. Please try again.')
+        }
+      } else {
+        setError('Transcription failed. Please try again.')
+      }
     } finally {
       setIsTranscribing(false)
     }
   }
+
+  const retryTranscription = async (noteId: string, audioBase64: string) => {
+    setRetryingNoteId(noteId)
+    try {
+      const blob = base64ToBlob(audioBase64)
+      const formData = new FormData()
+      formData.append('file', blob, 'voice-note.webm')
+      const res = await fetch('/api/transcribe', { method: 'POST', body: formData })
+      if (!res.ok) throw new Error('Transcription failed')
+      const data = await res.json()
+      if (data.text) markVoiceNoteTranscribed(noteId, data.text)
+    } catch {
+      setError('Still offline — will auto-retry once connected.')
+    } finally {
+      setRetryingNoteId(null)
+    }
+  }
+
+  const toggleReadAloud = (note: { id: string; content: string }) => {
+    if (speakingNoteId === note.id && isSpeaking) {
+      stopSpeaking()
+      setSpeakingNoteId(null)
+      return
+    }
+    setSpeakingNoteId(note.id)
+    speak(note.content)
+  }
+
+  // Keep the per-note "speaking" indicator in sync when speech finishes on its own.
+  useEffect(() => {
+    if (!isSpeaking) setSpeakingNoteId(null)
+  }, [isSpeaking])
 
   const handleSave = () => {
     if (currentText.trim()) {
@@ -371,6 +453,35 @@ export function VoiceNoteTaker() {
                         </Button>
                       </div>
                     </div>
+                  ) : note.transcriptionStatus === 'pending' ? (
+                    <>
+                      <div className="flex items-center gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs font-medium">
+                        <WifiOff className="h-3.5 w-3.5 shrink-0" />
+                        Recorded offline — will transcribe automatically once you're back online.
+                      </div>
+                      <div className="flex justify-between items-end mt-1">
+                        <span className="text-[10px] font-medium text-slate-400">
+                          {new Date(note.createdAt).toLocaleDateString()} • {new Date(note.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => note.pendingAudioBase64 && retryTranscription(note.id, note.pendingAudioBase64)}
+                            disabled={retryingNoteId === note.id}
+                            className="text-slate-400 hover:text-primary p-2 hover:bg-primary/10 rounded-lg transition-colors disabled:opacity-50"
+                            title="Retry transcription now"
+                          >
+                            {retryingNoteId === note.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                          </button>
+                          <button
+                            onClick={() => removeVoiceNote(note.id)}
+                            className="text-slate-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete note"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </>
                   ) : (
                     <>
                       <p className="whitespace-pre-wrap leading-relaxed text-slate-700">{note.content}</p>
@@ -387,6 +498,15 @@ export function VoiceNoteTaker() {
                         </div>
 
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {ttsSupported && (
+                            <button
+                              onClick={() => toggleReadAloud(note)}
+                              className="text-slate-400 hover:text-primary p-2 hover:bg-primary/10 rounded-lg transition-colors"
+                              title={speakingNoteId === note.id && isSpeaking ? 'Stop reading' : 'Read aloud'}
+                            >
+                              {speakingNoteId === note.id && isSpeaking ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                            </button>
+                          )}
                           <button
                             onClick={() => { setEditingNoteId(note.id); setEditContent(note.content); setEditTag(note.tag) }}
                             className="text-slate-400 hover:text-primary p-2 hover:bg-primary/10 rounded-lg transition-colors"

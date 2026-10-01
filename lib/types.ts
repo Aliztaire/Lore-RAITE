@@ -99,4 +99,8 @@ export interface VoiceNote {
   content: string
   tag?: string
   createdAt: string
+  // Set when transcription couldn't run (offline) at record time. The raw
+  // audio is kept as base64 so it can be retried once back online.
+  transcriptionStatus?: 'pending' | 'done'
+  pendingAudioBase64?: string
 }

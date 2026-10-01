@@ -52,6 +52,8 @@ const PLACEHOLDER_EXAMPLES = [
   'e.g., "The relationship between sleep deprivation and emotional regulation"',
 ]
 
+const DRAFT_KEY = 'buddy-onboarding-draft'
+
 type Step = 'input' | 'questions' | 'recommend'
 
 interface AIQuestion { id: string; question: string; placeholder: string }
@@ -92,6 +94,37 @@ export function Onboarding() {
   useEffect(() => {
     if (editingId) editInputRef.current?.focus()
   }, [editingId])
+
+  // Restore an in-progress wizard (topic/answers/recommendations) after a refresh.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY)
+      if (!raw) return
+      const draft = JSON.parse(raw)
+      if (draft.topic) setTopic(draft.topic)
+      if (draft.step) setStep(draft.step)
+      if (draft.questions) setQuestions(draft.questions)
+      if (draft.answers) setAnswers(draft.answers)
+      if (draft.openQuestion !== undefined) setOpenQuestion(draft.openQuestion)
+      if (draft.rrlPapers) setRrlPapers(draft.rrlPapers)
+      if (draft.rrwPapers) setRrwPapers(draft.rrwPapers)
+      if (draft.selectedRrl) setSelectedRrl(new Set(draft.selectedRrl))
+      if (draft.selectedRrw) setSelectedRrw(new Set(draft.selectedRrw))
+    } catch {}
+  }, [])
+
+  // Keep the draft in sync as the wizard progresses.
+  useEffect(() => {
+    if (step === 'input' && !topic.trim()) {
+      sessionStorage.removeItem(DRAFT_KEY)
+      return
+    }
+    const draft = {
+      topic, step, questions, answers, openQuestion, rrlPapers, rrwPapers,
+      selectedRrl: Array.from(selectedRrl), selectedRrw: Array.from(selectedRrw),
+    }
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+  }, [topic, step, questions, answers, openQuestion, rrlPapers, rrwPapers, selectedRrl, selectedRrw])
 
   const filteredProjects = [...projects]
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
@@ -166,6 +199,7 @@ export function Onboarding() {
         const litSection = project.outline.body.find(s => s.title === 'Literature Review')
         if (litSection) updateSection(litSection.id, { references: allRefs })
       }
+      sessionStorage.removeItem(DRAFT_KEY)
     } finally {
       setIsCreating(false)
     }
@@ -177,6 +211,7 @@ export function Onboarding() {
       setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
       return
     }
+    sessionStorage.removeItem(DRAFT_KEY)
     selectProject(id)
     setShowOnboarding(false)
   }

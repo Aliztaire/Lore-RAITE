@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/analyze.py": {
+      "maxDuration": 30
+    },
+    "api/analyze-literature.py": {
+      "maxDuration": 60
+    }
+  }
+}

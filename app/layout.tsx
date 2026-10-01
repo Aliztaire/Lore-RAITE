@@ -20,6 +20,8 @@ export const viewport: Viewport = {
 }
 
 import { AuthProvider } from '@/components/auth-provider'
+import { PwaRegister } from '@/components/pwa-register'
+import { Toaster } from '@/components/ui/sonner'
 
 export default function RootLayout({
   children,
@@ -32,6 +34,8 @@ export default function RootLayout({
         <AuthProvider>
           {children}
         </AuthProvider>
+        <PwaRegister />
+        <Toaster />
         <Analytics />
       </body>
     </html>
