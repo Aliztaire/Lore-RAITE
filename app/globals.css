@@ -3,71 +3,75 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Buddy — warm academic minimalism.
+ * Paper ground, ink text, hairline rules, one restrained accent.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #1e1a1e;
+  --background: #faf8f4;          /* paper */
+  --foreground: #1c1a17;          /* ink */
   --card: #ffffff;
-  --card-foreground: #1e1a1e;
+  --card-foreground: #1c1a17;
   --popover: #ffffff;
-  --popover-foreground: #1e1a1e;
+  --popover-foreground: #1c1a17;
 
-  /* Olive green as primary */
-  --primary: #a0ad6d;
+  /* Deep academic green — primary actions, active nav, focus */
+  --primary: #2f4a3a;
   --primary-foreground: #ffffff;
 
-  /* Green as secondary */
-  --secondary: #d6edda;
-  --secondary-foreground: #14402a;
+  /* Quiet surfaces (hover, selected rows, chips) */
+  --secondary: #f1ede5;
+  --secondary-foreground: #1c1a17;
+  --muted: #f1ede5;
+  --muted-foreground: #6b655c;
+  --subtle-foreground: #948d81;   /* tertiary text, meta */
+  --accent: #f1ede5;
+  --accent-foreground: #1c1a17;
 
-  --muted: #e2d8e0;
-  --muted-foreground: #0f0909;
-  --text-foreground: #ffffff;
+  --destructive: #8a2e2a;         /* oxblood */
+  --destructive-foreground: #ffffff;
+  --warning: #8a6a1f;             /* ochre */
+  --primary-soft: #e8eee9;        /* tinted surface for selected/positive */
 
-  /* Green as accent */ 
-  --accent: #3dab68;
-  --accent-foreground: #ffffff;
+  --border: #e4ded3;
+  --input: #d9d2c5;
+  --ring: #2f4a3a;
 
-  --destructive: #d63e5a;
-  --destructive-foreground: #fff6f9;
+  --chart-1: #2f4a3a;
+  --chart-2: #8a6a1f;
+  --chart-3: #6b655c;
+  --chart-4: #8a2e2a;
+  --chart-5: #b8b0a2;
 
-  --border: #381d18;
-  --input: #ffffff;
-  --ring: #a0ad6d;
+  --radius: 0.375rem;
 
-  --chart-1: #d4547a;
-  --chart-2: #3dab68;
-  --chart-3: #e87aaa;
-  --chart-4: #5dc48a;
-  --chart-5: #f0a0c0;
-
-  /* Larger radius for LUMI's rounded feel */
-  --radius: 1rem;
-
-  --sidebar: #a0ad6d;
-  --sidebar-foreground: #1e1a1e;
-  --sidebar-primary: #a0ad6d;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1c1a17;
+  --sidebar-primary: #2f4a3a;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #d6edda;
-  --sidebar-accent-foreground: #14402a;
-  --sidebar-border: #dcc8d4;
-  --sidebar-ring: #d4547a;
+  --sidebar-accent: #f1ede5;
+  --sidebar-accent-foreground: #1c1a17;
+  --sidebar-border: #e4ded3;
+  --sidebar-ring: #2f4a3a;
 
-  /* Node canvas tokens */
-  --node-section: #3dab68;
-  --node-concept: #d4547a;
-  --node-evidence: #5dc48a;
-  --edge-supports: #2e8f52;
-  --edge-contradicts: #d63e5a;
-  --edge-references: #e87aaa;
-  --edge-elaborates: #d4547a;
-  --canvas-bg: #fdfbfd;
-  --canvas-grid: #e8d8e0;
+  /* Node canvas */
+  --node-section: #1c1a17;
+  --node-concept: #2f4a3a;
+  --node-evidence: #8a6a1f;
+  --edge-supports: #2f4a3a;
+  --edge-contradicts: #8a2e2a;
+  --edge-references: #948d81;
+  --edge-elaborates: #c4bcae;
+  --canvas-bg: #faf8f4;
+  --canvas-grid: #e4ded3;
+
+  --shadow-popover: 0 1px 2px rgba(28, 26, 23, 0.04), 0 8px 24px rgba(28, 26, 23, 0.08);
 }
 
 @theme inline {
-  --font-sans: var(--font-urbanist), 'Urbanist', sans-serif;
-  --font-serif: var(--font-urbanist), 'Urbanist', sans-serif;
-  --font-mono: var(--font-urbanist), 'Urbanist', sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-source-serif), 'Iowan Old Style', Georgia, serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, 'SFMono-Regular', monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -76,14 +80,17 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-subtle-foreground: var(--subtle-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -92,10 +99,10 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 8px);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -104,8 +111,8 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --shadow-popover: var(--shadow-popover);
 
-  /* Node Canvas Colors */
   --color-node-section: var(--node-section);
   --color-node-concept: var(--node-concept);
   --color-node-evidence: var(--node-evidence);
@@ -122,147 +129,152 @@
     @apply border-border outline-ring/50;
   }
 
-  /* Thin, subtle scrollbars everywhere */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--input) transparent;
+  }
   *::-webkit-scrollbar {
-    width: 4px;
-    height: 4px;
+    width: 6px;
+    height: 6px;
   }
   *::-webkit-scrollbar-track {
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background: #dcc8d4;
+    background: var(--input);
     border-radius: 99px;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background: #d4547a66;
-  }
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: #dcc8d4 transparent;
+    background: var(--subtle-foreground);
   }
 
   html {
     min-height: 100%;
-    background-color: #ffffff;
+    background-color: var(--background);
   }
 
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: 'kern', 'liga', 'calt';
+    text-rendering: optimizeLegibility;
+  }
+
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background: #d6e0d8;
+    color: var(--foreground);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 }
 
-/* ── CSS Teddy Bear ── */
-.bear-scene {
-  font-size: 8px;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30em;
-  height: 40em;
-  overflow: visible;
-  isolation: isolate;
+/* Small-caps style label used for section eyebrows and table headers */
+@utility eyebrow {
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--subtle-foreground);
 }
 
-.teddy-bear {
-  height: 40em;
-  width: 30em;
-  position: relative;
-  z-index: 2;
-  background:
-    radial-gradient(ellipse 100% 100%, #cbf3de 49%, transparent 50%) left 50% top 52% / 1em 1em,
-    radial-gradient(ellipse 100% 100%, #8cedba 49%, transparent 50%) left 50% top 55% / 3.5em 3.5em,
-    radial-gradient(ellipse 100% 100%, #8cecb9 49%, transparent 50%) left 41% top 59% / 1em 1em,
-    radial-gradient(ellipse 100% 100%, #79cc9e 49%, transparent 50%) left 41% top 52% / 3em 3em,
-    radial-gradient(ellipse 100% 100%, #79cc9e 49%, transparent 50%) left 41% top 58% / 3em 3em,
-    radial-gradient(ellipse 100% 100%, #8cecb9 49%, transparent 50%) right 41% top 51% / 1em 1em,
-    radial-gradient(ellipse 100% 100%, #79cc9e 49%, transparent 50%) right 41% top 52% / 3em 3em,
-    radial-gradient(ellipse 100% 100%, #79cc9e 49%, transparent 50%) right 41% top 58% / 3em 3em,
-    radial-gradient(ellipse 100% 100%, #f89182 49%, transparent 50%) left 33% top 36% / .8em .8em,
-    radial-gradient(ellipse 100% 100%, #ff7a5f 49%, transparent 50%) left 33% top 37% / 3em 3em,
-    radial-gradient(ellipse 100% 100%, #f89182 49%, transparent 50%) right 33% top 36% / .8em .8em,
-    radial-gradient(ellipse 100% 100%, #ff7a5f 49%, transparent 50%) right 33% top 37% / 3em 3em,
-    radial-gradient(ellipse 100% 100%, #9f604d 49%, transparent 50%) 50% 34% / 2em 1.7em,
-    radial-gradient(ellipse 100% 100% at 50% -10%, transparent 43%, #905f2c 43% 49%, transparent 50%) 50% 43% / 6em 3em,
-    linear-gradient(0deg, #905f2c, #905f2c) 50% 38% / .2em 3em,
-    radial-gradient(ellipse 100% 100%, #feca8e 49.8%, transparent 50%) 50% 36.5% / 8em 6.5em,
-    radial-gradient(ellipse 100% 100%, #eedccc 45%, transparent 50%) right 38% top 30% / .6em .6em,
-    radial-gradient(ellipse 100% 100%, #333 49%, transparent 50%) right 39% top 30% / 2.2em 2.2em,
-    radial-gradient(ellipse 100% 100%, #eedccc 45%, transparent 50%) left 38% top 30% / .6em .6em,
-    radial-gradient(ellipse 100% 100%, #333 49%, transparent 50%) left 39% top 30% / 2.2em 2.2em,
-    radial-gradient(ellipse 100% 100%, #9f604d 49.8%, transparent 50%) left 50% top 15% / 21em 19em,
-    radial-gradient(ellipse 100% 100%, transparent 33.8%, #9f604b 34% 49.8%, transparent 50%) left 20% top 5% / 6em 6em,
-    radial-gradient(ellipse 100% 100%, #fdca8d 49%, transparent 50%) left 24% top 9% / 4em 4em,
-    radial-gradient(ellipse 100% 100%, #f1b376 49%, transparent 50%) left 20% top 5% / 6em 6em,
-    radial-gradient(ellipse 100% 100%, transparent 33.8%, #9f604b 34% 49.8%, transparent 50%) right 20% top 5% / 6em 6em,
-    radial-gradient(ellipse 100% 100%, #fdca8d 49%, transparent 50%) right 24% top 9% / 4em 4em,
-    radial-gradient(ellipse 100% 100%, #f1b376 49%, transparent 50%) right 20% top 5% / 6em 6em,
-    radial-gradient(ellipse 100% 100%, #feca8e 49.8%, transparent 50%) left 50% bottom 20% / 12em 11em,
-    radial-gradient(ellipse 100% 100%, #9f604d 49.8%, transparent 50%) left 50% bottom 15% / 18em 20em,
-    radial-gradient(ellipse 100% 100%, #dba26a 49%, transparent 50%) left 50% bottom 0 / 30em 7em;
-  background-repeat: no-repeat;
+/* ── Reduced motion ─────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
-.teddy-bear::before,
-.teddy-bear::after {
-  --rotation: 35deg;
-  content: '';
-  display: block;
-  position: absolute;
-  bottom: .7em;
-  height: 10em;
-  aspect-ratio: 8 / 11;
-  background: #feca8e;
-  border: 1em solid #be785e;
-  border-radius: 50% 50% 50% 50% / 43% 43% 65% 65%;
-}
-.teddy-bear::before {
-  left: 3.5em;
-  transform: rotate(-35deg);
-}
-.teddy-bear::after {
-  right: 3.5em;
-  transform: rotate(35deg);
-}
-
-.bear-scene::before,
-.bear-scene::after {
-  content: '';
-  display: block;
-  position: absolute;
-  height: 12em;
-  width: 6.5em;
-  top: 52%;
-  z-index: 0;
-  background:
-    radial-gradient(ellipse 100% 100%, #feca8e 49%, transparent 50%) left 50% bottom .4em / 3.5em 3.2em,
-    radial-gradient(ellipse 100% 100%, #be785e 49.8%, transparent 50%) left 50% top 50% / 100% 100%;
-  background-repeat: no-repeat;
-}
-.bear-scene::before {
-  left: 5.5em;
-  transform-origin: top center;
-  transform: rotate(45deg);
-}
-.bear-scene::after {
-  right: 5.5em;
-  transform-origin: top center;
-  transform: rotate(-45deg);
-}
-
-
-
-
-/* ── TipTap editor ──────────────────────────────── */
+/* ── TipTap editor (manuscript page) ────────────── */
 .tiptap-editor .ProseMirror {
   min-height: 100%;
   outline: none;
+  @apply font-serif;
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: var(--foreground);
+}
+.tiptap-editor .ProseMirror > * + * {
+  margin-top: 0.9em;
+}
+.tiptap-editor .ProseMirror h1,
+.tiptap-editor .ProseMirror h2,
+.tiptap-editor .ProseMirror h3 {
+  @apply font-serif;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 1.6em;
+}
+.tiptap-editor .ProseMirror h1 { font-size: 1.5rem; }
+.tiptap-editor .ProseMirror h2 { font-size: 1.25rem; }
+.tiptap-editor .ProseMirror h3 { font-size: 1.0625rem; }
+.tiptap-editor .ProseMirror strong { font-weight: 600; }
+.tiptap-editor .ProseMirror em { font-style: italic; }
+.tiptap-editor .ProseMirror ul { list-style: disc; padding-left: 1.4em; }
+.tiptap-editor .ProseMirror ol { list-style: decimal; padding-left: 1.4em; }
+.tiptap-editor .ProseMirror li + li { margin-top: 0.25em; }
+.tiptap-editor .ProseMirror blockquote {
+  border-left: 2px solid var(--border);
+  padding-left: 1em;
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+.tiptap-editor .ProseMirror hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 2em 0;
+}
+.tiptap-editor .ProseMirror img {
+  max-width: 100%;
+  border-radius: var(--radius);
 }
 .tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
-  color: #9ca3af;
+  color: var(--subtle-foreground);
   pointer-events: none;
   float: left;
   height: 0;
+  white-space: pre-line;
+}
+
+/* ── Chat / assistant markdown ──────────────────── */
+.prose-chat {
+  line-height: 1.6;
+}
+.prose-chat > * + * { margin-top: 0.6em; }
+.prose-chat h1, .prose-chat h2, .prose-chat h3 {
+  font-weight: 600;
+  font-size: 1em;
+  margin-top: 1em;
+}
+.prose-chat strong { font-weight: 600; }
+.prose-chat em { font-style: italic; }
+.prose-chat ul { list-style: disc; padding-left: 1.25em; }
+.prose-chat ol { list-style: decimal; padding-left: 1.25em; }
+.prose-chat li + li { margin-top: 0.3em; }
+.prose-chat a { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
+.prose-chat hr { border: 0; border-top: 1px solid var(--border); margin: 1em 0; }
+.prose-chat blockquote {
+  border-left: 2px solid var(--border);
+  padding-left: 0.75em;
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+.prose-chat code {
+  @apply font-mono;
+  font-size: 0.9em;
+  background: var(--muted);
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
 }

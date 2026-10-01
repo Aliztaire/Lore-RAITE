@@ -31,15 +31,15 @@ export function UserProfile() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="focus:outline-none">
-        <Avatar className="h-8 w-8 transition-transform hover:scale-105 border border-border">
+      <DropdownMenuTrigger className="rounded-full focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2">
+        <Avatar className="h-8 w-8 border border-border">
           <AvatarImage src={user.photoURL || undefined} alt={user.displayName || 'User'} />
-          <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
+          <AvatarFallback className="bg-muted text-muted-foreground text-xs font-medium">
             {getInitials(user.displayName)}
           </AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56 bg-white border border-border shadow-md backdrop-filter-none">
+      <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{user.displayName || 'User'}</p>
@@ -47,7 +47,7 @@ export function UserProfile() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => signOut(auth)} className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer">
+        <DropdownMenuItem onClick={() => signOut(auth)} variant="destructive" className="cursor-pointer">
           <LogOut className="mr-2 h-4 w-4" />
           <span>Sign out</span>
         </DropdownMenuItem>

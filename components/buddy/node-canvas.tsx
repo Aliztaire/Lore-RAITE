@@ -14,12 +14,13 @@ import type { CanvasNode, CanvasEdge } from '@/lib/types'
 
 // ─── Visual config ─────────────────────────────────────────────────────────
 const NODE_R = { section: 13, concept: 8, evidence: 9 }
-const NODE_FILL = { section: '#381d18', concept: '#fb804a', evidence: '#ffce5d' }
+const NODE_FILL = { section: '#1c1a17', concept: '#2f4a3a', evidence: '#8a6a1f' }
+const RESOLVED_FILL = '#7d9886'
 const EDGE_COLORS: Record<string, string> = {
-  supports:    '#fb804a',
-  contradicts: '#381d18',
-  references:  '#ffce5d',
-  elaborates:  '#ffaa75',
+  supports:    '#2f4a3a',
+  contradicts: '#8a2e2a',
+  references:  '#948d81',
+  elaborates:  '#c4bcae',
 }
 
 const EDGE_LABELS: CanvasEdge['label'][] = ['supports', 'contradicts', 'references', 'elaborates']
@@ -490,14 +491,14 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
   const sourceSimNode = connectSource ? simRef.current.get(connectSource) : null
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden" style={{ backgroundColor: '#ffffff' }}>
+    <div className="flex-1 flex flex-col overflow-hidden bg-background">
       {/* Toolbar */}
       {!isMiniMap && (
-        <div className="h-12 border-b border-border flex items-center justify-between px-4 shrink-0" style={{ backgroundColor: '#fef5dd' }}>
+        <div className="h-12 border-b border-border bg-card flex items-center justify-between px-4 shrink-0">
           <div className="flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon"><Plus className="h-4 w-4" /></Button>
+                <Button variant="outline" size="sm"><Plus /> Add node</Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 <DropdownMenuItem onClick={() => openCreatePanel('section')}><FileText   className="h-4 w-4 mr-2" /> Section</DropdownMenuItem>
@@ -509,41 +510,46 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
             <div className="h-4 w-px bg-border" />
 
             <Button
-              size="icon"
-              className="text-white border-0"
-              style={{ backgroundColor: isAnalyzing || !hasSectionContent ? '#ffaa75' : '#fb804a' }}
+              size="sm"
               disabled={isAnalyzing || !hasSectionContent}
               onClick={generateAndAnalyze}
-              title="Analyze Connections"
+              title={hasSectionContent ? 'Build the map from your section text' : 'Write some content first'}
             >
-              {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Network className="h-4 w-4" />}
+              {isAnalyzing ? <Loader2 className="animate-spin" /> : <Network />}
+              {isAnalyzing ? 'Analyzing…' : 'Analyze connections'}
             </Button>
 
             <div className="h-4 w-px bg-border" />
 
             {/* Connect mode toggle */}
             <Button
-              variant={connectMode ? 'default' : 'outline'}
-              size="icon"
-              style={connectMode ? { backgroundColor: '#fb804a', borderColor: '#fb804a', color: '#fff' } : {}}
+              variant="outline"
+              size="sm"
+              aria-pressed={connectMode}
+              className={connectMode ? 'bg-accent border-primary text-primary hover:text-primary' : ''}
               onClick={() => { setConnectMode(m => !m); cancelConnect() }}
-              title={connectMode ? (connectSource ? 'Pick target…' : 'Pick source…') : 'Connect nodes'}
             >
-              <Link2 className="h-4 w-4" />
+              <Link2 />
+              Connect
             </Button>
+            {connectMode && (
+              <span className="text-xs text-muted-foreground ml-1">
+                {connectSource ? 'Now select the target node.' : 'Select the source node.'}
+              </span>
+            )}
 
           </div>
 
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" onClick={() => setZoom(z => Math.min(z * 1.2, 4))}><ZoomIn  className="h-4 w-4" /></Button>
-            <span className="text-xs text-muted-foreground w-12 text-center">{Math.round(zoom * 100)}%</span>
-            <Button variant="ghost" size="icon" onClick={() => setZoom(z => Math.max(z * 0.8, 0.15))}><ZoomOut className="h-4 w-4" /></Button>
-            <Button variant="ghost" size="icon" onClick={() => {
+            <Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Zoom in" onClick={() => setZoom(z => Math.min(z * 1.2, 4))}><ZoomIn /></Button>
+            <span className="text-xs text-muted-foreground w-12 text-center tabular-nums">{Math.round(zoom * 100)}%</span>
+            <Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Zoom out" onClick={() => setZoom(z => Math.max(z * 0.8, 0.15))}><ZoomOut /></Button>
+            <Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Reset view" onClick={() => {
               setZoom(0.9)
               const el = containerRef.current
               if (el) { const { width, height } = el.getBoundingClientRect(); setPan({ x: width / 2, y: height / 2 }) }
             }}>
-              <Maximize2 className="h-4 w-4" />
+              <Maximize2 />
             </Button>
           </div>
         </div>
@@ -561,7 +567,7 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
           onMouseUp={isMiniMap ? undefined : handleMouseUp}
           onMouseLeave={isMiniMap ? undefined : handleMouseUp}
           style={{
-            backgroundImage: isMiniMap ? undefined : `radial-gradient(circle, rgba(251,128,74,0.25) 1px, transparent 1px)`,
+            backgroundImage: isMiniMap ? undefined : `radial-gradient(circle, rgba(28,26,23,0.12) 1px, transparent 1px)`,
             backgroundSize:     `${20 * zoom}px ${20 * zoom}px`,
             backgroundPosition: `${pan.x}px ${pan.y}px`,
           }}
@@ -581,7 +587,7 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
                 <line
                   x1={sourceSimNode.x} y1={sourceSimNode.y}
                   x2={mousePos.x} y2={mousePos.y}
-                  stroke="#fb804a" strokeWidth={1.5 / zoom} strokeDasharray={`${6 / zoom},${4 / zoom}`}
+                  stroke="#2f4a3a" strokeWidth={1.5 / zoom} strokeDasharray={`${6 / zoom},${4 / zoom}`}
                   opacity={0.7}
                 />
               )}
@@ -592,13 +598,13 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
                 const ss = simRef.current.get(edge.source)
                 const ts = simRef.current.get(edge.target)
                 if (!ss || !ts) return null
-                const color    = EDGE_COLORS[edge.label] ?? '#94a3b8'
+                const color    = EDGE_COLORS[edge.label] ?? '#948d81'
                 const isActive = tooltipNodeId === edge.source || tooltipNodeId === edge.target
                 const dx = ts.x - ss.x, dy = ts.y - ss.y
                 const mx = (ss.x + ts.x) / 2 - dy * 0.15
                 const my = (ss.y + ts.y) / 2 + dx * 0.15
                 return (
-                  <g key={edge.id} opacity={isActive ? 1 : 0.5} style={{ transition: 'opacity 0.2s' }}>
+                  <g key={edge.id} opacity={isActive ? 1 : 0.55} style={{ transition: 'opacity 150ms' }}>
                     <path
                       d={`M ${ss.x} ${ss.y} Q ${mx} ${my} ${ts.x} ${ts.y}`}
                       fill="none" stroke={color}
@@ -620,7 +626,7 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
                 const hasImage   = !!node.data?.imageUrl
                 const isResolved = !!node.data?.resolved
                 const r          = isPara ? NODE_R.concept : NODE_R.section
-                const fill       = isResolved ? '#7db87d' : NODE_FILL[node.type]
+                const fill       = isResolved ? RESOLVED_FILL : NODE_FILL[node.type]
                 const isSelected = selectedNode === node.id
                 const isHovered  = hoveredNode  === node.id
                 const isSource   = connectSource === node.id
@@ -638,16 +644,15 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
                       onMouseEnter={() => setHoveredNode(node.id)}
                       onMouseLeave={() => setHoveredNode(null)}
                     >
-                      <rect x={s.x - cardW / 2 + 2} y={s.y - cardH / 2 + 2} width={cardW} height={cardH} rx={8} fill="rgba(0,0,0,0.12)" />
                       <rect
                         x={s.x - cardW / 2} y={s.y - cardH / 2}
-                        width={cardW} height={cardH} rx={8}
-                        fill={isResolved ? '#f0faf0' : '#fff3e0'}
-                        stroke={isSource ? '#3dab68' : isSelected || isHovered ? fill : '#ffaa75'}
-                        strokeWidth={isSource || isSelected || isHovered ? 2.5 : 1.5}
+                        width={cardW} height={cardH} rx={4}
+                        fill="#ffffff"
+                        stroke={isSource ? '#2f4a3a' : isSelected || isHovered ? fill : '#e4ded3'}
+                        strokeWidth={isSource || isSelected || isHovered ? 2 : 1}
                       />
                       <clipPath id={`card-clip-${node.id}`}>
-                        <rect x={s.x - cardW / 2} y={s.y - cardH / 2} width={cardW} height={imgH} rx={8} />
+                        <rect x={s.x - cardW / 2} y={s.y - cardH / 2} width={cardW} height={imgH} rx={4} />
                       </clipPath>
                       <image
                         href={node.data!.imageUrl}
@@ -660,10 +665,10 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
                       <text
                         x={s.x} y={s.y - cardH / 2 + imgH + 12}
                         fontSize={9} fontWeight="600" textAnchor="middle"
-                        fill={isResolved ? '#3d7a3d' : '#381d18'}
+                        fill={isResolved ? '#4b6b57' : '#1c1a17'}
                         style={{ userSelect: 'none' } as React.CSSProperties}
                       >
-                        {isResolved ? '✓ ' : ''}{node.label.length > 10 ? node.label.slice(0, 10) + '…' : node.label}
+                        {node.label.length > 10 ? node.label.slice(0, 10) + '…' : node.label}
                       </text>
                     </g>
                   )
@@ -682,32 +687,32 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
                     onMouseLeave={() => setHoveredNode(null)}
                   >
                     {(isHovered || isSelected || isSource) && (
-                      <circle cx={s.x} cy={s.y} r={r + 6} fill={isSource ? '#3dab68' : fill} opacity="0.2" />
+                      <circle cx={s.x} cy={s.y} r={r + 4} fill="none" stroke={isSource ? '#2f4a3a' : fill} strokeWidth={1} opacity={0.5} />
                     )}
                     <circle
                       cx={s.x} cy={s.y} r={r}
                       fill={fill}
-                      stroke={isSource ? '#3dab68' : 'white'}
-                      strokeWidth={isSource ? 2.5 : isSelected ? 2.5 : isHovered ? 1.5 : 0}
-                      opacity={isResolved ? 0.75 : 0.93}
+                      stroke="#ffffff"
+                      strokeWidth={isSelected || isSource ? 2 : 0}
                     />
                     {/* Resolved checkmark badge */}
                     {isResolved && (
                       <>
-                        <circle cx={s.x + r} cy={s.y - r} r={5} fill="#3dab68" />
-                        <text x={s.x + r} y={s.y - r + 3.5} fontSize={7} textAnchor="middle" fill="white" style={{ userSelect: 'none' } as React.CSSProperties}>✓</text>
+                        <circle cx={s.x + r} cy={s.y - r} r={5} fill="#ffffff" stroke={RESOLVED_FILL} strokeWidth={1} />
+                        <path d={`M ${s.x + r - 2.2} ${s.y - r} l 1.5 1.5 l 2.8 -3`} fill="none" stroke={RESOLVED_FILL} strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" />
                       </>
                     )}
                     {/* Custom node dot */}
                     {isCustom && !isResolved && (
-                      <circle cx={s.x + r - 2} cy={s.y - r + 2} r={3} fill="#381d18" />
+                      <circle cx={s.x + r - 2} cy={s.y - r + 2} r={2.5} fill="#ffffff" stroke="#1c1a17" strokeWidth={1} />
                     )}
                     <text
                       x={s.x + r + 6} y={s.y + 4}
                       fontSize={isPara ? 10 : 12}
                       fontWeight={isPara ? '400' : '600'}
-                      fill={isPara ? '#555' : '#222'}
-                      style={{ paintOrder: 'stroke', stroke: 'rgba(245,244,240,0.85)', strokeWidth: 3, userSelect: 'none' } as React.CSSProperties}
+                      fill={isPara ? '#6b655c' : '#1c1a17'}
+                      fontFamily={isPara ? undefined : 'var(--font-source-serif), Georgia, serif'}
+                      style={{ paintOrder: 'stroke', stroke: 'rgba(250,248,244,0.9)', strokeWidth: 3, userSelect: 'none' } as React.CSSProperties}
                     >
                       {node.label}
                     </text>
@@ -720,22 +725,20 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
           {/* Edge type picker popup */}
           {edgePicker && (
             <div
-              className="absolute z-40 rounded-xl border shadow-xl overflow-hidden"
+              className="absolute z-40 min-w-40 rounded-md border border-border bg-popover shadow-popover overflow-hidden"
               onMouseDown={e => e.stopPropagation()}
               style={{
                 left: edgePicker.screenX - (containerRef.current?.getBoundingClientRect().left ?? 0) + 12,
                 top:  edgePicker.screenY - (containerRef.current?.getBoundingClientRect().top  ?? 0) - 20,
-                backgroundColor: '#fef5dd',
-                borderColor: '#ffaa75',
               }}
             >
-              <div className="px-3 py-2 border-b text-xs font-bold" style={{ borderColor: '#ffaa75', color: '#381d18' }}>
+              <div className="px-3 py-2 border-b border-border eyebrow">
                 Connection type
               </div>
               {EDGE_LABELS.map(label => (
                 <button
                   key={label}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-orange-50 transition-colors capitalize"
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent transition-colors duration-150 capitalize"
                   onClick={() => confirmEdge(label)}
                 >
                   <div className="w-4 h-0.5 rounded" style={{ backgroundColor: EDGE_COLORS[label] }} />
@@ -743,8 +746,7 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
                 </button>
               ))}
               <button
-                className="flex items-center gap-2 w-full px-3 py-2 text-xs text-muted-foreground hover:bg-orange-50 transition-colors border-t"
-                style={{ borderColor: '#ffaa75' }}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-muted-foreground hover:bg-accent transition-colors duration-150 border-t border-border"
                 onClick={() => setEdgePicker(null)}
               >
                 <X className="h-3 w-3" /> Cancel
@@ -766,15 +768,15 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
                   maxWidth: 280,
                 }}
               >
-                <div className="backdrop-blur-sm border rounded-xl p-3 shadow-xl space-y-2" style={{ backgroundColor: 'rgba(254,245,221,0.97)', borderColor: '#ffaa75' }}>
-                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: '#fb804a' }}>
+                <div className="border border-border bg-popover rounded-md p-3 shadow-popover space-y-2">
+                  <p className="eyebrow">
                     {tooltipNodeData.location}
                   </p>
                   <p className="text-xs text-foreground/80 leading-relaxed line-clamp-4">
                     {tooltipContent || tooltipNodeData.label}
                   </p>
                   {connectedEdges.length > 0 && (
-                    <div className="border-t pt-2 space-y-1.5" style={{ borderColor: '#ffaa75' }}>
+                    <div className="border-t border-border pt-2 space-y-1.5">
                       {connectedEdges.slice(0, 3).map(e => {
                         const otherId   = e.source === tooltipNodeData.id ? e.target : e.source
                         const otherNode = nodes.find(n => n.id === otherId)
@@ -807,8 +809,8 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
 
           {/* Legend */}
           {!isMiniMap && (
-            <div className="absolute bottom-4 left-4 p-3 rounded-lg backdrop-blur-sm border" style={{ backgroundColor: 'rgba(254,245,221,0.85)', borderColor: '#ffaa75' }}>
-              <p className="text-xs font-medium mb-2 text-muted-foreground">Connections</p>
+            <div className="absolute bottom-4 left-4 p-3 rounded-md border border-border bg-card">
+              <p className="eyebrow mb-2">Connections</p>
               <div className="space-y-1">
                 {Object.entries(EDGE_COLORS).map(([label, color]) => (
                   <div key={label} className="flex items-center gap-2 text-xs">
@@ -817,9 +819,7 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
                   </div>
                 ))}
                 <div className="flex items-center gap-2 text-xs mt-1">
-                  <div className="w-3 h-3 rounded-full flex items-center justify-center" style={{ backgroundColor: '#3dab68' }}>
-                    <span className="text-white" style={{ fontSize: 7 }}>✓</span>
-                  </div>
+                  <div className="w-6 flex justify-center"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: RESOLVED_FILL }} /></div>
                   <span className="text-muted-foreground">Resolved</span>
                 </div>
               </div>
@@ -827,101 +827,90 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
           )}
 
           {!isMiniMap && (
-            <div className="absolute bottom-4 right-4 p-2 rounded-lg backdrop-blur-sm border" style={{ backgroundColor: 'rgba(254,245,221,0.75)', borderColor: '#ffaa75' }}>
-              <p className="text-[10px] text-muted-foreground">Click custom nodes to edit · Use Connect to link nodes</p>
+            <div className="absolute bottom-4 right-4">
+              <p className="text-xs text-subtle-foreground">Double-click a section to open it · Click a custom node to edit</p>
             </div>
           )}
         </div>
 
         {/* Node Editor Panel */}
         {panel.open && !isMiniMap && (
-          <div className="w-80 shrink-0 border-l flex flex-col h-full z-30" style={{ backgroundColor: '#fef5dd', borderColor: '#ffaa75' }}>
-            <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: '#ffaa75' }}>
+          <div className="w-80 shrink-0 border-l border-border bg-card flex flex-col h-full z-30">
+            <div className="flex items-center justify-between pl-5 pr-3 h-12 border-b border-border">
               <div className="flex items-center gap-2">
-                {panel.type === 'section'  && <FileText   className="h-4 w-4" style={{ color: '#381d18' }} />}
-                {panel.type === 'concept'  && <Lightbulb  className="h-4 w-4" style={{ color: '#fb804a' }} />}
-                {panel.type === 'evidence' && <BookMarked className="h-4 w-4" style={{ color: '#ffce5d' }} />}
-                <span className="text-sm font-bold capitalize" style={{ color: '#381d18' }}>
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: NODE_FILL[panel.type] }} />
+                <span className="font-serif text-base font-semibold capitalize">
                   {panel.mode === 'edit' ? 'Edit' : 'New'} {panel.type}
                 </span>
               </div>
-              <button onClick={() => setPanel(p => ({ ...p, open: false }))} className="rounded-lg p-1 hover:bg-black/10 transition-colors">
-                <X className="h-4 w-4" style={{ color: '#381d18' }} />
-              </button>
+              <Button variant="ghost" size="icon-sm" className="text-muted-foreground" onClick={() => setPanel(p => ({ ...p, open: false }))} aria-label="Close">
+                <X />
+              </Button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+            <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
               {/* Label */}
               <div>
-                <label className="text-xs font-semibold mb-1 block" style={{ color: '#381d18' }}>Label</label>
+                <label htmlFor="node-label" className="eyebrow mb-1.5 block">Label</label>
                 <input
+                  id="node-label"
                   value={panel.label}
                   onChange={e => setPanel(p => ({ ...p, label: e.target.value }))}
                   placeholder="Short title…"
-                  className="w-full px-3 py-2 text-sm rounded-lg border outline-none transition-colors"
-                  style={{ backgroundColor: '#fff3e0', borderColor: '#ffaa75', color: '#381d18' }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#fb804a')}
-                  onBlur={e => (e.currentTarget.style.borderColor = '#ffaa75')}
+                  className="w-full px-3 py-2 text-sm rounded-md border border-input bg-card outline-none focus:border-ring focus:ring-2 focus:ring-ring/15 transition-colors"
                 />
               </div>
 
               {/* Content */}
               <div>
-                <label className="text-xs font-semibold mb-1 block" style={{ color: '#381d18' }}>Content</label>
+                <label htmlFor="node-content" className="eyebrow mb-1.5 block">Content</label>
                 <textarea
+                  id="node-content"
                   value={panel.content}
                   onChange={e => setPanel(p => ({ ...p, content: e.target.value }))}
                   placeholder="Describe this node…"
                   rows={5}
-                  className="w-full px-3 py-2 text-sm rounded-lg border outline-none resize-none transition-colors"
-                  style={{ backgroundColor: '#fff3e0', borderColor: '#ffaa75', color: '#381d18' }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#fb804a')}
-                  onBlur={e => (e.currentTarget.style.borderColor = '#ffaa75')}
+                  className="w-full px-3 py-2 text-sm rounded-md border border-input bg-card outline-none focus:border-ring focus:ring-2 focus:ring-ring/15 transition-colors resize-none"
                 />
               </div>
 
               {/* Resolved toggle — concept & evidence only */}
               {(panel.type === 'concept' || panel.type === 'evidence') && (
                 <div>
-                  <label className="text-xs font-semibold mb-2 block" style={{ color: '#381d18' }}>Status</label>
+                  <span className="eyebrow mb-1.5 block">Status</span>
                   <button
                     onClick={() => setPanel(p => ({ ...p, resolved: !p.resolved }))}
-                    className="flex items-center gap-2 w-full px-3 py-2.5 rounded-lg border text-sm font-medium transition-all"
-                    style={{
-                      backgroundColor: panel.resolved ? '#e8f5e8' : '#fff3e0',
-                      borderColor: panel.resolved ? '#3dab68' : '#ffaa75',
-                      color: panel.resolved ? '#2e7d2e' : '#381d18',
-                    }}
+                    aria-pressed={panel.resolved}
+                    className={`flex items-center gap-2 w-full px-3 py-2 rounded-md border text-sm transition-colors duration-150 ${panel.resolved ? 'border-primary/40 bg-primary-soft text-primary' : 'border-input bg-card text-foreground hover:bg-accent'}`}
                   >
-                    <CheckCircle2 className="h-4 w-4" style={{ color: panel.resolved ? '#3dab68' : '#ffaa75' }} />
-                    {panel.resolved ? 'Resolved / Implemented' : 'Mark as Resolved'}
+                    <CheckCircle2 className="h-4 w-4" />
+                    {panel.resolved ? 'Resolved' : 'Mark as resolved'}
                   </button>
                 </div>
               )}
 
               {/* Image upload */}
               <div>
-                <label className="text-xs font-semibold mb-1 block" style={{ color: '#381d18' }}>Image</label>
+                <span className="eyebrow mb-1.5 block">Image</span>
                 <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                 {panel.imageUrl ? (
-                  <div className="relative rounded-xl overflow-hidden border" style={{ borderColor: '#ffaa75' }}>
+                  <div className="relative rounded-md overflow-hidden border border-border">
                     <img src={panel.imageUrl} alt="uploaded" className="w-full object-cover max-h-48" />
                     <button
                       onClick={() => setPanel(p => ({ ...p, imageUrl: null }))}
-                      className="absolute top-2 right-2 rounded-full p-1 shadow"
-                      style={{ backgroundColor: '#381d18' }}
+                      className="absolute top-2 right-2 rounded-full p-1 bg-card border border-border text-foreground"
+                      aria-label="Remove image"
                     >
-                      <X className="h-3 w-3 text-white" />
+                      <X className="h-3 w-3" />
                     </button>
                   </div>
                 ) : (
                   <button
                     onClick={() => imageInputRef.current?.click()}
-                    className="w-full border-2 border-dashed rounded-xl py-8 flex flex-col items-center gap-2 transition-colors hover:bg-orange-50"
-                    style={{ borderColor: '#ffaa75' }}
+                    className="w-full border border-dashed border-input rounded-md py-6 flex flex-col items-center gap-1.5 text-muted-foreground hover:bg-accent/60 transition-colors duration-150"
                   >
-                    <ImageIcon className="h-6 w-6" style={{ color: '#ffaa75' }} />
-                    <span className="text-xs" style={{ color: '#fb804a' }}>Click to upload an image</span>
+                    <ImageIcon className="h-5 w-5 text-subtle-foreground" />
+                    <span className="text-xs">Upload an image</span>
                   </button>
                 )}
               </div>
@@ -930,8 +919,7 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
               {panel.mode === 'edit' && panel.id && (panel.type === 'concept' || panel.type === 'evidence') && (
                 <button
                   onClick={() => { toggleResolved(panel.id!); setPanel(p => ({ ...p, open: false })) }}
-                  className="text-xs underline text-center transition-colors"
-                  style={{ color: '#fb804a' }}
+                  className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 text-center transition-colors"
                 >
                   {nodes.find(n => n.id === panel.id)?.data?.resolved
                     ? 'Mark as unresolved'
@@ -940,13 +928,12 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
               )}
             </div>
 
-            <div className="p-4 border-t flex gap-2" style={{ borderColor: '#ffaa75' }}>
+            <div className="p-4 border-t border-border flex gap-2">
               <Button variant="outline" size="sm" className="flex-1" onClick={() => setPanel(p => ({ ...p, open: false }))}>
                 Cancel
               </Button>
               <Button
-                size="sm" className="flex-1 text-white border-0"
-                style={{ backgroundColor: panel.label.trim() ? '#fb804a' : '#ffaa75' }}
+                size="sm" className="flex-1"
                 disabled={!panel.label.trim()}
                 onClick={handleSavePanel}
               >

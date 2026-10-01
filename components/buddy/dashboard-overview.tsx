@@ -1,18 +1,17 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import {
-  CheckCircle2, Network, PenTool,
-  Sparkles, ArrowRight,
-  BookOpen, FileText, Quote, Calendar, Mic, TestTube2, X, Loader2
-} from 'lucide-react'
+import { useState } from 'react'
+import { ArrowRight, Check, Loader2 } from 'lucide-react'
 import { useBuddyStore } from '@/lib/store'
-import confetti from 'canvas-confetti'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
+import { cn } from '@/lib/utils'
 
 export function DashboardOverview() {
   const { getCurrentProject, setViewMode, selectSection, setVoiceNotePanelOpen, isVoiceNotePanelOpen, updateProject } = useBuddyStore()
   const project = getCurrentProject()
-  const celebratedRef = useRef(false)
   const [showCompleteModal, setShowCompleteModal] = useState(false)
   const [paperName, setPaperName] = useState('')
   const [suggestions, setSuggestions] = useState<string[]>([])
@@ -25,27 +24,11 @@ export function DashboardOverview() {
   ] : []
 
   const completedSections = allSections.filter(s => s.completed).length
-  const isFullyComplete = allSections.length > 0 && completedSections === allSections.length
-
-  useEffect(() => {
-    if (isFullyComplete && !celebratedRef.current) {
-      celebratedRef.current = true
-      const end = Date.now() + 3000
-      const colors = ['#9bb067', '#fb804a', '#ffce5d', '#381d18', '#fef5dd']
-      const frame = () => {
-        confetti({ particleCount: 6, angle: 60, spread: 55, origin: { x: 0 }, colors })
-        confetti({ particleCount: 6, angle: 120, spread: 55, origin: { x: 1 }, colors })
-        if (Date.now() < end) requestAnimationFrame(frame)
-      }
-      frame()
-    }
-    if (!isFullyComplete) celebratedRef.current = false
-  }, [isFullyComplete])
 
   if (!project) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <p className="text-muted-foreground">Select or create a project to get started</p>
+        <p className="text-muted-foreground">Select or create a paper to get started.</p>
       </div>
     )
   }
@@ -54,6 +37,8 @@ export function DashboardOverview() {
   )
   const totalReferences = allSections.reduce((acc, s) => acc + s.references.length, 0)
   const nextIncompleteSection = allSections.find(s => !s.completed)
+  const progressPct = allSections.length ? Math.round((completedSections / allSections.length) * 100) : 0
+  const updated = new Date(project.updatedAt)
 
   const handleContinueWriting = () => {
     if (nextIncompleteSection) {
@@ -99,308 +84,193 @@ export function DashboardOverview() {
     setViewMode('literature')
   }
 
+  const stats = [
+    { label: 'Sections complete', value: `${completedSections} of ${allSections.length}` },
+    { label: 'Words written', value: totalWords.toLocaleString() },
+    { label: 'Sources collected', value: totalReferences.toString() },
+    { label: 'Last edited', value: updated.toLocaleDateString([], { month: 'short', day: 'numeric' }), meta: updated.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) },
+  ]
+
+  const tools = [
+    { label: 'Concept map', desc: 'See how ideas and sections connect across the paper.', onClick: () => setViewMode('canvas') },
+    { label: 'Voice notes', desc: 'Record and transcribe quick thoughts while you research.', onClick: () => setVoiceNotePanelOpen(!isVoiceNotePanelOpen) },
+    { label: 'Statistical analysis', desc: 'Choose and run the right test for your data.', onClick: () => setViewMode('analyzer') },
+    { label: 'Literature gap analysis', desc: 'Compare your draft against your bibliography.', onClick: () => setViewMode('literature') },
+  ]
+
   return (
-    <div className="flex-1 flex flex-col overflow-y-auto" style={{ background: '#fdfbfd' }}>
-      {/* Top hero banner */}
-      <div
-        className="px-8 pt-8 pb-10"
-        style={{
-          background: '#fef5dd',
-        }}
-      >
-        <div className="max-w-5xl mx-auto">
-          <p className="text-sm font-medium mb-1 tracking-wide uppercase" style={{ color: 'rgba(56,29,24,0.6)' }}>Your Project</p>
-          <h1 className="font-serif text-3xl font-bold mb-4 text-balance leading-snug" style={{ color: '#381d18' }}>
+    <div className="flex-1 overflow-y-auto bg-background">
+      <div className="max-w-5xl mx-auto px-10 py-12">
+
+        {/* Title block */}
+        <header className="pb-8 border-b border-border">
+          <p className="eyebrow mb-3">Research paper</p>
+          <h1 className="font-serif text-[2rem] leading-tight font-semibold text-foreground max-w-3xl">
             {project.title}
           </h1>
+          {project.topic && project.topic !== project.title && (
+            <p className="mt-3 text-muted-foreground max-w-2xl leading-relaxed">{project.topic}</p>
+          )}
 
-          {/* Quick Actions */}
-          <div className="flex flex-wrap gap-3">
-            {/* Continue Writing */}
-            <div className="relative group">
-              <button
-                onClick={handleContinueWriting}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all"
-                style={{ backgroundColor: '#381d18', color: '#ffffff' }}
-              >
-                <PenTool className="h-4 w-4" />
-                Continue Writing
-                <ArrowRight className="h-4 w-4" />
-              </button>
-              <div className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-2 w-52 rounded-xl bg-white/95 text-gray-700 text-xs px-3 py-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-20 text-center leading-relaxed">
-                Pick up where you left off and keep writing your paper with AI assistance.
-              </div>
-            </div>
-
-            {/* View Canvas */}
-            <div className="relative group">
-              <button
-                onClick={() => setViewMode('canvas')}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm hover:opacity-80 transition-all border"
-                style={{ backgroundColor: 'rgba(56,29,24,0.12)', color: '#381d18', borderColor: 'rgba(56,29,24,0.25)' }}
-              >
-                <Network className="h-4 w-4" />
-                View Canvas
-              </button>
-              <div className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-2 w-52 rounded-xl bg-white/95 text-gray-700 text-xs px-3 py-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-20 text-center leading-relaxed">
-                Visualize how your ideas and sections connect on an interactive concept map.
-              </div>
-            </div>
-
-            {/* Voice Notes */}
-            <div className="relative group">
-              <button
-                onClick={() => setVoiceNotePanelOpen(!isVoiceNotePanelOpen)}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm hover:opacity-80 transition-all border"
-                style={{ backgroundColor: 'rgba(56,29,24,0.12)', color: '#381d18', borderColor: 'rgba(56,29,24,0.25)' }}
-              >
-                <Mic className="h-4 w-4" />
-                Voice Notes
-              </button>
-              <div className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-2 w-52 rounded-xl bg-white/95 text-gray-700 text-xs px-3 py-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-20 text-center leading-relaxed">
-                Record quick voice memos for ideas you don&apos;t want to lose while researching.
-              </div>
-            </div>
-
-            {/* Stats Analyzer */}
-            <div className="relative group">
-              <button
-                onClick={() => setViewMode('analyzer')}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm hover:opacity-80 transition-all border"
-                style={{ backgroundColor: 'rgba(56,29,24,0.12)', color: '#381d18', borderColor: 'rgba(56,29,24,0.25)' }}
-              >
-                <TestTube2 className="h-4 w-4" />
-                Stats Analyzer
-              </button>
-              <div className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-2 w-52 rounded-xl bg-white/95 text-gray-700 text-xs px-3 py-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-20 text-center leading-relaxed">
-                Analyze and interpret statistical data relevant to your research topic.
-              </div>
-            </div>
-
-            {/* Complete */}
-            <div className="relative group">
-              <button
-                onClick={openCompleteModal}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm hover:opacity-80 transition-all border"
-                style={{ backgroundColor: 'rgba(56,29,24,0.12)', color: '#381d18', borderColor: 'rgba(56,29,24,0.25)' }}
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                Complete
-              </button>
-              <div className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-2 w-52 rounded-xl bg-white/95 text-gray-700 text-xs px-3 py-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-20 text-center leading-relaxed">
-                Finalize your paper title and scan for any remaining literature gaps.
-              </div>
-            </div>
+          <div className="mt-7 flex flex-wrap items-center gap-3">
+            {nextIncompleteSection ? (
+              <Button onClick={handleContinueWriting}>
+                Continue writing: {nextIncompleteSection.title}
+                <ArrowRight />
+              </Button>
+            ) : (
+              <Button onClick={() => setViewMode('writing')}>
+                Open manuscript
+                <ArrowRight />
+              </Button>
+            )}
+            <Button variant="outline" onClick={openCompleteModal}>
+              Finalize paper
+            </Button>
           </div>
+        </header>
+
+        {/* Stats */}
+        <dl className="grid grid-cols-2 md:grid-cols-4 border-b border-border">
+          {stats.map((s, i) => (
+            <div key={s.label} className={cn('py-6', i > 0 && 'md:pl-6 md:border-l border-border', i % 2 === 1 && 'pl-6 border-l md:border-l')}>
+              <dt className="eyebrow">{s.label}</dt>
+              <dd className="mt-2 font-serif text-2xl text-foreground tabular-nums">
+                {s.value}
+                {s.meta && <span className="ml-2 font-sans text-sm text-subtle-foreground">{s.meta}</span>}
+              </dd>
+            </div>
+          ))}
+        </dl>
+
+        <div className="grid md:grid-cols-[1fr_18rem] gap-12 pt-10">
+
+          {/* Sections */}
+          <section aria-labelledby="sections-heading">
+            <div className="flex items-baseline justify-between mb-3">
+              <h2 id="sections-heading" className="font-serif text-xl font-semibold">Outline</h2>
+              <span className="text-sm text-muted-foreground tabular-nums">{progressPct}% complete</span>
+            </div>
+            <div className="h-1 w-full bg-muted rounded-full overflow-hidden mb-4" role="progressbar" aria-valuenow={progressPct} aria-valuemin={0} aria-valuemax={100}>
+              <div className="h-full bg-primary transition-[width] duration-200" style={{ width: `${progressPct}%` }} />
+            </div>
+
+            <ol className="divide-y divide-border border-y border-border">
+              {allSections.map((section, i) => {
+                const wordCount = section.content?.split(/\s+/).filter(Boolean).length || 0
+                const status = section.completed ? 'Complete' : wordCount > 0 ? 'In progress' : 'Not started'
+                return (
+                  <li key={section.id}>
+                    <button
+                      onClick={() => { selectSection(section.id); setViewMode('writing') }}
+                      className="w-full text-left flex items-center gap-4 px-2 py-3.5 hover:bg-accent/60 transition-colors duration-150 group"
+                    >
+                      <span className="w-6 text-sm text-subtle-foreground tabular-nums">{String(i + 1).padStart(2, '0')}</span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-[0.95rem] text-foreground truncate">{section.title}</span>
+                        {section.description && (
+                          <span className="block text-xs text-subtle-foreground truncate mt-0.5">{section.description}</span>
+                        )}
+                      </span>
+                      <span className="text-xs text-subtle-foreground tabular-nums w-16 text-right">{wordCount.toLocaleString()} words</span>
+                      <span className={cn(
+                        'text-xs w-24 text-right flex items-center justify-end gap-1',
+                        section.completed ? 'text-primary' : 'text-muted-foreground',
+                      )}>
+                        {section.completed && <Check className="h-3.5 w-3.5" />}
+                        {status}
+                      </span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ol>
+          </section>
+
+          {/* Tools */}
+          <aside aria-labelledby="tools-heading">
+            <h2 id="tools-heading" className="font-serif text-xl font-semibold mb-4">Tools</h2>
+            <ul className="space-y-1">
+              {tools.map(t => (
+                <li key={t.label}>
+                  <button
+                    onClick={t.onClick}
+                    className="w-full text-left px-3 py-3 -mx-3 rounded-md hover:bg-accent/60 transition-colors duration-150 group"
+                  >
+                    <span className="flex items-center justify-between text-sm font-medium text-foreground">
+                      {t.label}
+                      <ArrowRight className="h-3.5 w-3.5 text-subtle-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-150" />
+                    </span>
+                    <span className="block text-xs text-muted-foreground mt-0.5 leading-relaxed">{t.desc}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </aside>
         </div>
       </div>
 
-      {/* Complete Modal */}
-      {showCompleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(30,15,10,0.6)', backdropFilter: 'blur(4px)' }}>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            {/* Header */}
-            <div className="px-7 pt-7 pb-5 border-b border-gray-100 flex items-start justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <CheckCircle2 className="h-5 w-5" style={{ color: '#a0ad6d' }} />
-                  <h2 className="font-serif text-xl font-bold" style={{ color: '#381d18' }}>Finalize Your Paper</h2>
-                </div>
-                <p className="text-sm" style={{ color: '#b0976a' }}>Confirm or update your paper's title before wrapping up.</p>
-              </div>
-              <button onClick={() => setShowCompleteModal(false)} className="p-1.5 rounded-full hover:bg-gray-100 transition-colors ml-4">
-                <X className="h-4 w-4 text-gray-400" />
-              </button>
+      {/* Finalize dialog */}
+      <Dialog open={showCompleteModal} onOpenChange={setShowCompleteModal}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl">Finalize your paper</DialogTitle>
+            <DialogDescription>Confirm or revise the title before running the literature gap analysis.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5">
+            <div>
+              <label htmlFor="paper-title" className="eyebrow block mb-2">Paper title</label>
+              <input
+                id="paper-title"
+                type="text"
+                value={paperName}
+                onChange={e => setPaperName(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-md border border-input bg-card text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/15 transition-colors"
+                placeholder="Enter your paper title…"
+              />
             </div>
 
-            {/* Body */}
-            <div className="px-7 py-6 space-y-5">
-              {/* Name input */}
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#b0976a' }}>Paper Title</label>
-                <input
-                  type="text"
-                  value={paperName}
-                  onChange={e => setPaperName(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border text-sm font-medium outline-none focus:ring-2"
-                  style={{ borderColor: '#ede9e3', color: '#381d18', background: '#fef5dd', focusRingColor: '#a0ad6d' } as React.CSSProperties}
-                  placeholder="Enter your paper title…"
-                />
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="eyebrow">Suggested titles</span>
+                {loadingSuggestions && <Loader2 className="h-3 w-3 animate-spin text-subtle-foreground" />}
               </div>
 
-              {/* AI Suggestions */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Sparkles className="h-3.5 w-3.5" style={{ color: '#a0ad6d' }} />
-                  <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#b0976a' }}>AI Suggestions</span>
-                  {loadingSuggestions && <Loader2 className="h-3 w-3 animate-spin text-gray-300" />}
+              {loadingSuggestions ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map(i => <div key={i} className="h-9 rounded-md bg-muted" />)}
                 </div>
-
-                {loadingSuggestions ? (
-                  <div className="space-y-2">
-                    {[1, 2, 3].map(i => (
-                      <div key={i} className="h-9 rounded-xl animate-pulse" style={{ background: '#f3f4f6' }} />
-                    ))}
-                  </div>
-                ) : suggestions.length > 0 ? (
-                  <div className="space-y-2">
-                    {suggestions.map((s, i) => (
+              ) : suggestions.length > 0 ? (
+                <div className="space-y-1.5">
+                  {suggestions.map((s, i) => {
+                    const on = paperName === s
+                    return (
                       <button
                         key={i}
                         onClick={() => setPaperName(s)}
-                        className="w-full text-left px-4 py-2.5 rounded-xl border-2 text-sm transition-all hover:-translate-y-0.5"
-                        style={{
-                          borderColor: paperName === s ? '#a0ad6d' : '#ede9e3',
-                          background: paperName === s ? '#f0f3e0' : '#fff',
-                          color: '#381d18',
-                        }}
+                        className={cn(
+                          'w-full text-left px-3 py-2.5 rounded-md border text-sm transition-colors duration-150',
+                          on ? 'border-primary bg-primary-soft text-foreground' : 'border-border hover:bg-accent/60',
+                        )}
                       >
                         {s}
                       </button>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs" style={{ color: '#b0976a' }}>Could not load suggestions. You can still type a title above.</p>
-                )}
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="px-7 pb-7 flex items-center gap-3 justify-end">
-              <button onClick={() => setShowCompleteModal(false)} className="px-5 py-2.5 rounded-full text-sm font-semibold border" style={{ borderColor: '#ede9e3', color: '#b0976a' }}>
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmComplete}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold text-white shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all"
-                style={{ background: '#381d18' }}
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                Complete &amp; Continue
-              </button>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">No suggestions available. You can still edit the title above.</p>
+              )}
             </div>
           </div>
-        </div>
-      )}
 
-      {/* Stats bar + Research Structure */}
-      <div className="flex-1 flex flex-col w-full px-8 pb-6 min-h-0">
-
-        {/* Stats bar */}
-        <div className="-mt-5 mb-6">
-          <div className="rounded-2xl bg-white shadow-sm border border-white/80 flex items-stretch divide-x divide-gray-100 overflow-hidden">
-
-            {/* Progress */}
-            <div className="flex-1 flex flex-col items-center justify-center px-6 py-2.5 gap-1">
-              <div className="flex items-center gap-2 mb-0.5">
-                <BookOpen className="h-3.5 w-3.5" style={{ color: '#fb804a' }} />
-                <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">Progress</span>
-              </div>
-              <p className="text-2xl font-bold leading-none" style={{ color: '#fb804a' }}>
-                {completedSections}<span className="text-base font-medium text-gray-300">/{allSections.length}</span>
-              </p>
-              <p className="text-[10px] text-gray-400 mt-1">sections done</p>
-            </div>
-
-            {/* Word Count */}
-            <div className="flex-1 flex flex-col items-center justify-center px-6 py-2.5 gap-1">
-              <div className="flex items-center gap-2 mb-0.5">
-                <FileText className="h-3.5 w-3.5" style={{ color: '#381d18' }} />
-                <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">Words</span>
-              </div>
-              <p className="text-2xl font-bold leading-none" style={{ color: '#381d18' }}>
-                {totalWords.toLocaleString()}
-              </p>
-              <p className="text-[10px] text-gray-400 mt-1">words written</p>
-            </div>
-
-            {/* References */}
-            <div className="flex-1 flex flex-col items-center justify-center px-6 py-2.5 gap-1">
-              <div className="flex items-center gap-2 mb-0.5">
-                <Quote className="h-3.5 w-3.5" style={{ color: '#ffce5d' }} />
-                <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">Sources</span>
-              </div>
-              <p className="text-2xl font-bold leading-none" style={{ color: '#ffce5d' }}>
-                {totalReferences}
-              </p>
-              <p className="text-[10px] text-gray-400 mt-1">sources found</p>
-            </div>
-
-            {/* Last Updated */}
-            <div className="flex-1 flex flex-col items-center justify-center px-6 py-2.5 gap-1">
-              <div className="flex items-center gap-2 mb-0.5">
-                <Calendar className="h-3.5 w-3.5" style={{ color: '#fb804a' }} />
-                <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">Updated</span>
-              </div>
-              <p className="text-2xl font-bold leading-none" style={{ color: '#fb804a' }}>
-                {new Date(project.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-              </p>
-              <p className="text-[10px] text-gray-400 mt-1">
-                {new Date(project.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </p>
-            </div>
-
-          </div>
-        </div>
-
-        {/* Research Structure */}
-        <div className="flex flex-col pt-6 w-full">
-          <div className="mb-4">
-            <h2 className="font-semibold text-[30px] text-gray-800">Research Structure</h2>
-            <p className="text-s text-gray-400 mt-0.5">Your paper&apos;s research structure</p>
-          </div>
-          <div className="flex items-stretch">
-            {/* CSS Teddy Bear */}
-            <div className="w-1/2 flex items-center justify-center py-2 overflow-visible">
-              {(() => {
-                const fillPercent = allSections.length > 0 ? completedSections / allSections.length : 0
-                const grayClip = `inset(0 0 ${fillPercent * 100}% 0)`
-                const colorClip = `inset(${(1 - fillPercent) * 100}% 0 0 0)`
-                return (
-                  <div style={{ position: 'relative', width: '240px', height: '320px', overflow: 'visible' }}>
-                    <div className="bear-scene" style={{ position: 'absolute', top: 0, left: 0, filter: 'grayscale(1) brightness(0.85)', clipPath: grayClip, transition: 'clip-path 0.6s ease' }}>
-                      <div className="teddy-bear" />
-                    </div>
-                    <div className="bear-scene" style={{ position: 'absolute', top: 0, left: 0, clipPath: colorClip, transition: 'clip-path 0.6s ease' }}>
-                      <div className="teddy-bear" />
-                    </div>
-                  </div>
-                )
-              })()}
-            </div>
-
-            {/* Section labels */}
-            <div className="w-1/2 flex flex-col gap-2 overflow-y-auto max-h-90 pr-1">
-              {allSections.map((section) => {
-                const wordCount = section.content?.split(/\s+/).filter(Boolean).length || 0
-                return (
-                  <button
-                    key={section.id}
-                    onClick={() => { selectSection(section.id); setViewMode('writing') }}
-                    className="w-full text-left px-4 py-3 rounded-xl hover:bg-orange-50 transition-colors flex items-center gap-3 group"
-                  >
-                    <CheckCircle2
-                      className={`h-4 w-4 shrink-0 transition-colors ${section.completed ? '' : 'text-gray-200 group-hover:text-gray-300'}`}
-                      style={section.completed ? { color: '#fb804a' } : {}}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium ${section.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
-                        {section.title}
-                      </p>
-                    </div>
-                    <span className="text-xs text-gray-300 tabular-nums mr-2">{wordCount}w</span>
-                    <span className="hidden group-hover:flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full whitespace-nowrap" style={{ color: '#fb804a', background: '#fff3e0' }}>
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Buddy can help
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-
-      </div>
+          <DialogFooter className="mt-2">
+            <Button variant="outline" onClick={() => setShowCompleteModal(false)}>Cancel</Button>
+            <Button onClick={handleConfirmComplete}>Save and continue</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

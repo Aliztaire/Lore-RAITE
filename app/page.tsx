@@ -16,6 +16,7 @@ import { exportToDocx, downloadBlob } from '@/lib/export'
 import { DocumentPreviewModal } from '@/components/buddy/document-preview-modal'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/auth-provider'
+import { useConfirm } from '@/components/buddy/confirm-dialog'
 
 export default function BuddyApp() {
   const { showOnboarding, viewMode, getCurrentProject, projects, focusMode } = useBuddyStore()
@@ -25,6 +26,7 @@ export default function BuddyApp() {
 
   const { user, loading } = useAuth()
   const router = useRouter()
+  const { confirm, notify } = useConfirm()
 
   // Handle hydration mismatch with localStorage
   useEffect(() => {
@@ -42,7 +44,11 @@ export default function BuddyApp() {
     if (!project) return
 
     const filename = `${project.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.docx`
-    const confirmed = confirm(`Export "${project.title}" as a Word document?\n\nThe file will be saved as: ${filename}`)
+    const confirmed = await confirm({
+      title: 'Export as Word document',
+      description: <>&ldquo;{project.title}&rdquo; will be saved as <span className="font-mono text-foreground">{filename}</span>.</>,
+      confirmLabel: 'Export',
+    })
     if (!confirmed) return
 
     try {
@@ -50,7 +56,7 @@ export default function BuddyApp() {
       downloadBlob(blob, filename)
     } catch (error) {
       console.error('[v0] Export failed:', error)
-      alert('Export failed. Please try again.')
+      await notify({ title: 'Export failed', description: 'The document could not be generated. Please try again.' })
     }
   }
 
@@ -58,10 +64,7 @@ export default function BuddyApp() {
   if (!isHydrated || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex items-center gap-3">
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <span className="text-muted-foreground">Loading Buddy...</span>
-        </div>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
     )
   }
@@ -99,8 +102,8 @@ export default function BuddyApp() {
         {viewMode === 'analyzer' && <Analyzer />}
         {viewMode === 'literature' && <IntegratedLiteratureAnalyzer onPreview={() => setShowPreview(true)} />}
 
-        {/* Checklist Sidebar - shown in dashboard and writing views (hidden in writing focus mode) */}
-        {(viewMode === 'dashboard' || (viewMode === 'writing' && !focusMode)) && project && (
+        {/* Outline + bibliography sidebar - writing view only (the overview has its own outline) */}
+        {viewMode === 'writing' && !focusMode && project && (
           <ChecklistSidebar />
         )}
       </div>

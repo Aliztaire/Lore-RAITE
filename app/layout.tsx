@@ -1,25 +1,38 @@
 import type { Metadata, Viewport } from 'next'
-import { Urbanist } from 'next/font/google'
+import { Inter, Source_Serif_4, JetBrains_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
-const _urbanist = Urbanist({
-  subsets: ["latin"],
-  variable: '--font-urbanist',
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
   display: 'swap',
-});
+})
+
+const sourceSerif = Source_Serif_4({
+  subsets: ['latin'],
+  variable: '--font-source-serif',
+  display: 'swap',
+})
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-jetbrains-mono',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
-  title: 'Buddy - AI Research Assistant',
-  description: 'Your AI-powered research companion for academic writing',
+  title: 'Buddy — Research Writing Assistant',
+  description: 'A research and writing companion for academic papers',
   generator: 'v0.app',
 }
 
 export const viewport: Viewport = {
-  themeColor: '#fdfbfd',
+  themeColor: '#faf8f4',
 }
 
 import { AuthProvider } from '@/components/auth-provider'
+import { ConfirmProvider } from '@/components/buddy/confirm-dialog'
 
 export default function RootLayout({
   children,
@@ -28,9 +41,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${_urbanist.variable} font-sans antialiased`}>
+      <body className={`${inter.variable} ${sourceSerif.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
         <AuthProvider>
-          {children}
+          <ConfirmProvider>
+            {children}
+          </ConfirmProvider>
         </AuthProvider>
         <Analytics />
       </body>

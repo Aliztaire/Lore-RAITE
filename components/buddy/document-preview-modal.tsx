@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import { X, Download } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import type { Project } from '@/lib/types'
+import { Button } from '@/components/ui/button'
 
 interface DocumentPreviewModalProps {
   project: Project
@@ -32,39 +33,35 @@ export function DocumentPreviewModal({ project, onClose, onExport }: DocumentPre
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto"
-      style={{ background: 'rgba(30,15,10,0.75)', backdropFilter: 'blur(4px)' }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Preview of ${project.title}`}
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#ebe6dc] animate-in fade-in-0 duration-150"
       onClick={e => { if (e.target === overlayRef.current) onClose() }}
     >
       {/* Toolbar */}
-      <div className="fixed top-0 left-0 right-0 z-10 flex items-center justify-between px-6 py-3 border-b border-white/10"
-        style={{ background: '#381d18' }}>
-        <div className="flex items-center gap-3">
-          <span className="text-white font-semibold text-sm font-serif">{project.title}</span>
-          <span className="text-white/40 text-xs">{wordCount.toLocaleString()} words</span>
+      <div className="fixed top-0 left-0 right-0 z-10 h-14 flex items-center justify-between px-5 border-b border-border bg-card">
+        <div className="flex items-baseline gap-3 min-w-0">
+          <span className="eyebrow shrink-0">Preview</span>
+          <span className="font-serif text-sm font-semibold truncate">{project.title}</span>
+          <span className="text-xs text-subtle-foreground tabular-nums shrink-0">{wordCount.toLocaleString()} words</span>
         </div>
         <div className="flex items-center gap-2">
           {onExport && (
-            <button
-              onClick={onExport}
-              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-white/20 text-white/70 hover:text-white hover:bg-white/10 transition-colors"
-            >
-              <Download className="w-3.5 h-3.5" /> Export .docx
-            </button>
+            <Button variant="outline" size="sm" onClick={onExport}>
+              <Download /> Export .docx
+            </Button>
           )}
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <Button variant="ghost" size="icon-sm" className="text-muted-foreground" onClick={onClose} aria-label="Close preview">
+            <X />
+          </Button>
         </div>
       </div>
 
       {/* Page */}
-      <div className="mt-16 mb-16 w-full max-w-[816px] mx-auto px-4">
+      <div className="mt-24 mb-16 w-full max-w-[816px] mx-auto px-4">
         <div
-          className="shadow-2xl"
+          className="border border-[#ddd6c9] shadow-[0_1px_3px_rgba(28,26,23,0.06)]"
           style={{
             background: '#fff',
             padding: '96px 96px 120px',

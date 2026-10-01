@@ -1,7 +1,9 @@
 'use client';
 import { useState } from 'react';
-import { ArrowRight, ArrowLeft, RefreshCw, UploadCloud, TestTube2, Activity, SplitSquareHorizontal, Plus, Trash2, Send, ChevronDown } from 'lucide-react';
+import { ArrowRight, ArrowLeft, RefreshCw, UploadCloud, Activity, SplitSquareHorizontal, Plus, Trash2, ChevronDown, Check, Loader2, AlertCircle } from 'lucide-react';
 import { useBuddyStore } from '@/lib/store';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 type GroupConfig = {
   id: string;
@@ -9,16 +11,6 @@ type GroupConfig = {
   sheet: string;
   col: string;
   data: string;
-};
-
-const C = {
-  brown:    '#381d18',
-  olive:    '#a0ad6d',
-  oliveLt:  '#f0f3e0',
-  orange:   '#fb804a',
-  orangeLt: '#fef5dd',
-  cream:    '#fef5dd',
-  muted:    '#b0976a',
 };
 
 export function Analyzer() {
@@ -184,84 +176,102 @@ export function Analyzer() {
     }, 1500);
   };
 
+  const STEPS = ['Data', 'Goal', 'Results'];
+
+  const PURPOSES = [
+    {
+      value: 'independent',
+      icon: <SplitSquareHorizontal className="w-4 h-4" />,
+      label: 'Compare independent groups',
+      desc: 'Compare means between separate groups. T-test, ANOVA, Kruskal–Wallis.',
+      disabled: false,
+    },
+    {
+      value: 'paired',
+      icon: <RefreshCw className="w-4 h-4" />,
+      label: 'Compare related or paired data',
+      desc: `The same subjects measured twice. Paired t-test, Wilcoxon.${groups.length > 2 ? ' Requires exactly two groups.' : ''}`,
+      disabled: groups.length > 2,
+    },
+    {
+      value: 'correlation',
+      icon: <Activity className="w-4 h-4" />,
+      label: 'Find a correlation',
+      desc: `Linear relationship between two variables. Pearson, Spearman.${groups.length > 2 ? ' Requires exactly two groups.' : ''}`,
+      disabled: groups.length > 2,
+    },
+  ];
+
+  const fieldClass = 'w-full px-3 py-2 rounded-md border border-input bg-card text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/15 transition-colors';
+
   return (
-    <div className="flex-1 flex flex-col overflow-y-auto" style={{ background: '#ffffff' }}>
+    <div className="flex-1 overflow-y-auto bg-background">
+      <div className="max-w-4xl mx-auto px-10 py-12">
 
-      {/* Hero */}
-      <div className="px-10 pt-10 pb-16" style={{ background: C.brown }}>
-        <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: C.olive }}>Research Tools</p>
-        <h1 className="font-serif text-4xl font-bold text-white leading-tight mb-1">Psychology Test Analyzer</h1>
-        <p className="text-sm" style={{ color: '#c8b8a8' }}>Run statistical tests on your research data.</p>
-      </div>
+        {/* Title */}
+        <header className="pb-8 mb-8 border-b border-border">
+          <p className="eyebrow mb-3">Research tools</p>
+          <h1 className="font-serif text-[2rem] leading-tight font-semibold">Statistical analysis</h1>
+          <p className="mt-2 text-muted-foreground">Enter your data, state your goal, and Buddy selects and runs an appropriate test.</p>
 
-      {/* Step pill */}
-      <div className="px-10 -mt-6 mb-8">
-        <div className="inline-flex items-center gap-1 bg-white rounded-full px-5 py-3 shadow-md border border-white/60">
-          {['Data', 'Goal', 'Results'].map((label, idx) => {
-            const s = idx + 1;
-            const active = step === s;
-            const done = step > s;
-            return (
-              <div key={s} className="flex items-center gap-1">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all"
-                    style={{ background: active ? C.olive : done ? C.orangeLt : '#f3f4f6', color: active ? '#fff' : done ? C.orange : '#9ca3af' }}>
-                    {done ? '✓' : s}
-                  </div>
-                  <span className="text-xs font-semibold" style={{ color: active ? C.brown : '#9ca3af' }}>{label}</span>
-                </div>
-                {s < 3 && <div className="w-8 h-px mx-2" style={{ background: done ? C.orange : '#e5e7eb' }} />}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="px-10 pb-12">
+          <ol className="flex items-center gap-3 mt-8 text-sm" aria-label="Progress">
+            {STEPS.map((label, idx) => {
+              const s = idx + 1;
+              const active = step === s;
+              const done = step > s;
+              return (
+                <li key={s} className="flex items-center gap-3">
+                  <span className={cn('flex items-center gap-2', active ? 'text-foreground' : done ? 'text-muted-foreground' : 'text-subtle-foreground')}>
+                    <span className={cn('h-6 w-6 rounded-full border flex items-center justify-center text-xs tabular-nums',
+                      active ? 'border-primary bg-primary text-primary-foreground' : done ? 'border-primary text-primary' : 'border-input')}>
+                      {done ? <Check className="h-3 w-3" /> : s}
+                    </span>
+                    <span className={active ? 'font-medium' : ''}>{label}</span>
+                  </span>
+                  {s < STEPS.length && <span className="w-10 h-px bg-border" />}
+                </li>
+              );
+            })}
+          </ol>
+        </header>
 
         {error && (
-          <div className="mb-8 px-5 py-4 rounded-2xl text-sm flex items-start gap-3 border" style={{ background: '#fff5f5', borderColor: '#fecaca', color: '#dc2626' }}>
-            <Activity className="w-4 h-4 shrink-0 mt-0.5" />
+          <div role="alert" className="mb-8 px-4 py-3 rounded-md text-sm flex items-start gap-3 border border-destructive/30 bg-destructive/5 text-destructive">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <p>{error}</p>
           </div>
         )}
 
         {/* STEP 1 */}
         {step === 1 && (
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="space-y-12">
 
             {/* Upload */}
-            <div className="mb-10">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: C.oliveLt }}>
-                  <UploadCloud className="w-4 h-4" style={{ color: C.olive }} />
-                </div>
-                <h2 className="font-semibold text-base" style={{ color: C.brown }}>Import from Excel / CSV</h2>
-              </div>
-              <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-2xl py-8 cursor-pointer transition-colors hover:border-opacity-80"
-                style={{ borderColor: C.olive, background: C.cream }}>
-                <UploadCloud className="w-6 h-6" style={{ color: C.olive }} />
-                <span className="text-sm font-medium" style={{ color: C.olive }}>Choose file</span>
-                <span className="text-xs" style={{ color: C.muted }}>.xlsx · .xls · .csv</span>
-                <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} className="hidden" />
+            <section>
+              <h2 className="font-serif text-lg font-semibold mb-1">Import a spreadsheet</h2>
+              <p className="text-sm text-muted-foreground mb-4">Optional. Load an Excel or CSV file and map its columns to your variables.</p>
+              <label className="flex items-center justify-center gap-3 border border-dashed border-input rounded-md py-6 cursor-pointer bg-card hover:bg-accent/40 transition-colors duration-150">
+                <UploadCloud className="w-5 h-5 text-subtle-foreground" />
+                <span className="text-sm text-foreground">Choose a file</span>
+                <span className="text-xs text-subtle-foreground">.xlsx, .xls, .csv</span>
+                <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} className="sr-only" />
               </label>
 
               {workbook && sheetNames.length > 0 && (
-                <div className="mt-5 space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: C.muted }}>Map columns to variables</p>
-                  <div className="grid grid-cols-2 gap-3">
+                <div className="mt-6">
+                  <p className="eyebrow mb-3">Map columns to variables</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {groups.map(group => {
                       const cols = sheetColsCache[group.sheet] || [];
                       return (
-                        <div key={`map_${group.id}`} className="p-4 rounded-2xl border" style={{ background: C.oliveLt, borderColor: 'transparent' }}>
-                          <p className="text-xs font-semibold mb-2" style={{ color: C.olive }}>{group.name}</p>
+                        <div key={`map_${group.id}`} className="p-4 rounded-md border border-border bg-card">
+                          <p className="text-sm font-medium mb-3">{group.name}</p>
                           <div className="space-y-2">
-                            <select className="w-full text-xs p-2 rounded-lg border bg-white outline-none" style={{ borderColor: '#d1d5db', color: C.brown }} value={group.sheet} onChange={e => handleSheetChange(group.id, e.target.value)}>
+                            <select aria-label={`${group.name} sheet`} className={cn(fieldClass, 'text-xs')} value={group.sheet} onChange={e => handleSheetChange(group.id, e.target.value)}>
                               {sheetNames.map(s => <option key={s} value={s}>{s}</option>)}
                             </select>
                             {cols.length > 0 && (
-                              <select className="w-full text-xs p-2 rounded-lg border bg-white outline-none" style={{ borderColor: '#d1d5db', color: C.brown }} value={group.col} onChange={e => updateGroup(group.id, 'col', e.target.value)}>
+                              <select aria-label={`${group.name} column`} className={cn(fieldClass, 'text-xs')} value={group.col} onChange={e => updateGroup(group.id, 'col', e.target.value)}>
                                 {cols.map(c => <option key={c} value={c}>{c}</option>)}
                               </select>
                             )}
@@ -270,210 +280,177 @@ export function Analyzer() {
                       );
                     })}
                   </div>
-                  <button onClick={applyColumns} className="w-full text-sm font-semibold py-2.5 rounded-xl text-white transition-opacity hover:opacity-90" style={{ background: C.olive }}>
-                    Extract Data →
-                  </button>
+                  <Button variant="outline" className="mt-4" onClick={applyColumns}>
+                    Extract data <ArrowRight />
+                  </Button>
                 </div>
               )}
-            </div>
+            </section>
 
             {/* Variables */}
-            <div className="mb-10">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="font-semibold text-base" style={{ color: C.brown }}>Variables / Groups</h2>
-                <button onClick={addGroup} className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
-                  style={{ color: C.orange, background: C.orangeLt }}>
-                  <Plus className="w-3.5 h-3.5" /> Add Group
-                </button>
+            <section>
+              <div className="flex items-end justify-between mb-4">
+                <div>
+                  <h2 className="font-serif text-lg font-semibold mb-1">Variables</h2>
+                  <p className="text-sm text-muted-foreground">Comma-separated values. Blank and NaN entries are treated as missing.</p>
+                </div>
+                <Button variant="ghost" size="sm" onClick={addGroup}>
+                  <Plus /> Add group
+                </Button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {groups.map((group, gi) => (
-                  <div key={group.id} className="group/field relative">
-                    <div className="h-1 rounded-t-xl" style={{ background: gi % 2 === 0 ? C.olive : C.orange }} />
-                    <div className="p-4 rounded-b-xl" style={{ background: '#fff', border: '1px solid #ede9e3', borderTop: 'none' }}>
-                      <div className="flex items-center justify-between mb-3">
-                        <input
-                          className="text-sm font-semibold bg-transparent border-none p-0 focus:ring-0 outline-none"
-                          style={{ color: C.brown }}
-                          value={group.name}
-                          onChange={e => updateGroup(group.id, 'name', e.target.value)}
-                          placeholder="Group name"
-                        />
-                        {groups.length > 2 && (
-                          <button onClick={() => removeGroup(group.id)} className="opacity-0 group-hover/field:opacity-100 transition-opacity p-1 rounded-lg hover:bg-red-50">
-                            <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                          </button>
-                        )}
-                      </div>
-                      <textarea
-                        rows={2}
-                        className="w-full px-3 py-2.5 rounded-xl border text-xs font-mono leading-relaxed outline-none resize-none"
-                        style={{ background: C.cream, borderColor: '#ede9e3', color: C.brown }}
-                        value={group.data}
-                        onChange={e => updateGroup(group.id, 'data', e.target.value)}
-                        placeholder="Comma-separated values, e.g. 1.2, 3.4, NaN, 5"
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {groups.map(group => (
+                  <div key={group.id} className="group/field rounded-md border border-border bg-card p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <input
+                        aria-label="Group name"
+                        className="text-sm font-medium bg-transparent border-none p-0 outline-none focus:underline underline-offset-4 decoration-border"
+                        value={group.name}
+                        onChange={e => updateGroup(group.id, 'name', e.target.value)}
+                        placeholder="Group name"
                       />
+                      {groups.length > 2 && (
+                        <button onClick={() => removeGroup(group.id)} className="opacity-0 group-hover/field:opacity-100 focus:opacity-100 transition-opacity duration-150 p-1 rounded text-subtle-foreground hover:text-destructive" title="Remove group">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
+                    <textarea
+                      rows={3}
+                      aria-label={`${group.name} values`}
+                      className={cn(fieldClass, 'text-xs font-mono leading-relaxed resize-none')}
+                      value={group.data}
+                      onChange={e => updateGroup(group.id, 'data', e.target.value)}
+                      placeholder="e.g. 1.2, 3.4, NaN, 5"
+                    />
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
 
             {/* Exclusion criteria */}
-            <div className="mb-10">
-              <h2 className="font-semibold text-base mb-4" style={{ color: C.brown }}>
-                Exclusion Criteria <span className="text-xs font-normal ml-1" style={{ color: C.muted }}>(optional)</span>
-              </h2>
-              <div className="flex gap-5">
+            <section>
+              <h2 className="font-serif text-lg font-semibold mb-1">Exclusion criteria</h2>
+              <p className="text-sm text-muted-foreground mb-4">Optional. Values outside this range are removed before testing.</p>
+              <div className="grid grid-cols-2 gap-4 max-w-md">
                 {[
                   { label: 'Minimum', val: criteriaMin, set: setCriteriaMin },
                   { label: 'Maximum', val: criteriaMax, set: setCriteriaMax },
                 ].map(({ label, val, set }) => (
-                  <div key={label} className="flex-1">
-                    <label className="block text-[11px] font-semibold uppercase tracking-widest mb-2" style={{ color: C.muted }}>{label}</label>
-                    <input type="number" className="w-full px-4 py-3 rounded-xl border text-sm outline-none" style={{ background: C.cream, borderColor: '#ede9e3', color: C.brown }} value={val} onChange={e => set(e.target.value)} placeholder="e.g. 0" />
+                  <div key={label}>
+                    <label htmlFor={`crit-${label}`} className="eyebrow block mb-1.5">{label}</label>
+                    <input id={`crit-${label}`} type="number" className={cn(fieldClass, 'font-mono')} value={val} onChange={e => set(e.target.value)} placeholder="None" />
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
 
-            <div className="flex justify-end">
-              <button onClick={() => setStep(2)} className="flex items-center gap-2 text-white font-semibold py-3 px-7 rounded-full shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl text-sm" style={{ background: C.brown }}>
-                Continue to Goal <ArrowRight className="w-4 h-4" />
-              </button>
+            <div className="flex justify-end border-t border-border pt-6">
+              <Button size="lg" onClick={() => setStep(2)}>
+                Continue <ArrowRight />
+              </Button>
             </div>
           </div>
         )}
 
         {/* STEP 2 */}
         {step === 2 && (
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="mb-8">
-              <h2 className="font-serif text-2xl font-bold mb-1" style={{ color: C.brown }}>What's the goal of your analysis?</h2>
-              <p className="text-sm" style={{ color: C.muted }}>For 3+ variables, ANOVA and post-hoc pipelines run automatically.</p>
-            </div>
+          <div>
+            <h2 className="font-serif text-xl font-semibold mb-1">What is the goal of your analysis?</h2>
+            <p className="text-sm text-muted-foreground mb-6">With three or more variables, ANOVA and post-hoc comparisons run automatically.</p>
 
-            <div className="space-y-4 mb-10">
-              {[
-                {
-                  value: 'independent',
-                  icon: <SplitSquareHorizontal className="w-6 h-6" />,
-                  label: 'Compare Independent Groups',
-                  desc: 'Compare means between separate groups. T-test, ANOVA, Kruskal-Wallis.',
-                  color: C.olive, bg: C.oliveLt,
-                  disabled: false,
-                },
-                {
-                  value: 'paired',
-                  icon: <RefreshCw className="w-6 h-6" />,
-                  label: 'Compare Related / Paired Data',
-                  desc: `Same subjects measured twice. Paired T-test, Wilcoxon.${groups.length > 2 ? ' Requires exactly 2 groups.' : ''}`,
-                  color: C.orange, bg: C.orangeLt,
-                  disabled: groups.length > 2,
-                },
-                {
-                  value: 'correlation',
-                  icon: <Activity className="w-6 h-6" />,
-                  label: 'Find Correlation',
-                  desc: `Linear relationship between two variables. Pearson / Spearman.${groups.length > 2 ? ' Requires exactly 2 groups.' : ''}`,
-                  color: '#7c6fcd', bg: '#f3f0fc',
-                  disabled: groups.length > 2,
-                },
-              ].map(({ value, icon, label, desc, color, bg, disabled }) => {
+            <div role="radiogroup" className="border-y border-border divide-y divide-border mb-10">
+              {PURPOSES.map(({ value, icon, label, desc, disabled }) => {
                 const active = purpose === value;
                 return (
-                  <label key={value} className={`flex items-start gap-5 p-5 rounded-2xl cursor-pointer transition-all border-2 ${disabled ? 'opacity-40 cursor-not-allowed' : 'hover:-translate-y-0.5'}`}
-                    style={{ background: active ? bg : '#fff', borderColor: active ? color : '#ede9e3' }}>
-                    <input type="radio" name="purpose" value={value} className="sr-only" checked={active} disabled={disabled} onChange={e => setPurpose(e.target.value)} />
-                    <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
-                      style={{ background: active ? color : '#f3f4f6', color: active ? '#fff' : '#9ca3af' }}>
-                      {icon}
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-sm mb-0.5" style={{ color: C.brown }}>{label}</p>
-                      <p className="text-xs" style={{ color: C.muted }}>{desc}</p>
-                    </div>
-                    {active && <div className="w-5 h-5 rounded-full border-[5px] shrink-0 mt-1" style={{ borderColor: color }} />}
+                  <label key={value} className={cn('flex items-start gap-4 px-2 py-4 transition-colors duration-150',
+                    disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-accent/40',
+                    active && 'bg-primary-soft/60')}>
+                    <input type="radio" name="purpose" value={value} className="sr-only peer" checked={active} disabled={disabled} onChange={e => setPurpose(e.target.value)} />
+                    <span className={cn('mt-0.5 h-4 w-4 rounded-full border flex items-center justify-center shrink-0 peer-focus-visible:ring-2 peer-focus-visible:ring-ring/40',
+                      active ? 'border-primary' : 'border-input bg-card')}>
+                      {active && <span className="h-2 w-2 rounded-full bg-primary" />}
+                    </span>
+                    <span className="flex-1">
+                      <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+                        <span className="text-subtle-foreground">{icon}</span>
+                        {label}
+                      </span>
+                      <span className="block text-sm text-muted-foreground mt-0.5">{desc}</span>
+                    </span>
                   </label>
                 );
               })}
             </div>
 
             <div className="flex items-center justify-between">
-              <button onClick={() => setStep(1)} className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-full" style={{ color: C.muted }}>
-                <ArrowLeft className="w-4 h-4" /> Back
-              </button>
-              <button onClick={handleAnalyze} disabled={loading} className="flex items-center gap-2 text-white font-semibold py-3 px-7 rounded-full shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl text-sm disabled:opacity-50"
-                style={{ background: C.brown }}>
-                {loading ? 'Analyzing…' : <><TestTube2 className="w-4 h-4" /> Run Analysis</>}
-              </button>
+              <Button variant="ghost" onClick={() => setStep(1)}>
+                <ArrowLeft /> Back
+              </Button>
+              <Button size="lg" onClick={handleAnalyze} disabled={loading}>
+                {loading ? <><Loader2 className="animate-spin" /> Analyzing…</> : <>Run analysis <ArrowRight /></>}
+              </Button>
             </div>
           </div>
         )}
 
         {/* STEP 3 */}
         {step === 3 && result && (
-          <div className="animate-in fade-in zoom-in-95 duration-300 space-y-10">
+          <div className="space-y-12">
 
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: C.muted }}>Recommended Test</p>
-              <div className="flex items-end gap-4 flex-wrap">
-                <h2 className="font-serif text-4xl font-bold" style={{ color: C.brown }}>{result.recommended_test}</h2>
-                <span className="mb-1 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold"
-                  style={{ background: result.significant ? C.oliveLt : '#f3f4f6', color: result.significant ? C.olive : '#6b7280' }}>
-                  <span className="w-2 h-2 rounded-full inline-block" style={{ background: result.significant ? C.olive : '#9ca3af' }} />
-                  {result.significant ? 'Statistically Significant' : 'Not Significant'}
+            <section>
+              <p className="eyebrow mb-2">Recommended test</p>
+              <div className="flex items-baseline gap-4 flex-wrap">
+                <h2 className="font-serif text-3xl font-semibold">{result.recommended_test}</h2>
+                <span className={cn('inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm border text-xs',
+                  result.significant ? 'border-primary/40 bg-primary-soft text-primary' : 'border-border text-muted-foreground')}>
+                  {result.significant ? 'Significant at p < .05' : 'Not significant at p < .05'}
                 </span>
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                { label: 'Test Statistic', value: result.statistic, color: C.olive, bg: C.oliveLt },
-                { label: 'P-Value', value: result.p_value, color: C.orange, bg: C.orangeLt },
-              ].map(({ label, value, color, bg }) => (
-                <div key={label} className="rounded-2xl p-6" style={{ background: bg }}>
-                  <p className="text-[11px] font-semibold uppercase tracking-widest mb-2" style={{ color }}>{label}</p>
-                  <p className="font-mono font-bold text-2xl" style={{ color: C.brown }}>{value}</p>
-                </div>
-              ))}
-            </div>
+              <dl className="grid grid-cols-2 mt-6 border-y border-border">
+                {[
+                  { label: 'Test statistic', value: result.statistic },
+                  { label: 'p-value', value: result.p_value },
+                ].map(({ label, value }, i) => (
+                  <div key={label} className={cn('py-5', i > 0 && 'pl-6 border-l border-border')}>
+                    <dt className="eyebrow">{label}</dt>
+                    <dd className="mt-1.5 font-mono text-2xl text-foreground tabular-nums">{value}</dd>
+                  </div>
+                ))}
+              </dl>
 
-            <div className="rounded-2xl p-5" style={{ background: result.significant ? C.oliveLt : '#f7f4ef', borderLeft: `4px solid ${result.significant ? C.olive : C.muted}` }}>
-              <p className="text-sm leading-relaxed" style={{ color: C.brown }}>
-                <strong>Interpretation — </strong>
+              <p className="mt-6 text-[0.95rem] leading-relaxed text-foreground max-w-prose border-l-2 border-border pl-4">
+                <span className="font-medium">Interpretation. </span>
                 {result.significant
-                  ? `The p-value (${result.p_value}) is below 0.05. We reject the null hypothesis — there is a statistically significant difference across the groups.`
-                  : `The p-value (${result.p_value}) exceeds 0.05. We fail to reject the null hypothesis — no significant difference was found.`}
+                  ? `The p-value (${result.p_value}) is below 0.05. We reject the null hypothesis: there is a statistically significant difference across the groups.`
+                  : `The p-value (${result.p_value}) exceeds 0.05. We fail to reject the null hypothesis: no significant difference was found.`}
               </p>
-            </div>
+            </section>
 
             {result.post_hoc?.length > 0 && result.significant && (
-              <div>
-                <h3 className="font-semibold text-base mb-1" style={{ color: C.brown }}>Post-Hoc Pairwise Comparisons</h3>
-                <p className="text-xs mb-4" style={{ color: C.muted }}>Pairwise breakdown because the omnibus test was significant.</p>
-                <div className="rounded-2xl overflow-hidden border" style={{ borderColor: '#ede9e3' }}>
-                  <table className="w-full text-sm">
+              <section>
+                <h3 className="font-serif text-lg font-semibold mb-1">Post-hoc pairwise comparisons</h3>
+                <p className="text-sm text-muted-foreground mb-4">Shown because the omnibus test was significant.</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border-y border-border">
                     <thead>
-                      <tr style={{ background: C.cream }}>
-                        {['Group A', 'Group B', 'P-Value', 'Significance'].map(h => (
-                          <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-widest" style={{ color: C.muted }}>{h}</th>
+                      <tr className="border-b border-border">
+                        {['Group A', 'Group B', 'p-value', 'Result'].map(h => (
+                          <th key={h} scope="col" className="px-3 py-2.5 text-left eyebrow">{h}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y" style={{ borderColor: '#f5f0e8' }}>
+                    <tbody className="divide-y divide-border">
                       {result.post_hoc.map((ph: any, idx: number) => {
                         const sig = ph.p_value < 0.05;
                         return (
-                          <tr key={idx} className="hover:bg-stone-50">
-                            <td className="px-4 py-3" style={{ color: C.brown }}>{ph.A}</td>
-                            <td className="px-4 py-3" style={{ color: C.brown }}>{ph.B}</td>
-                            <td className="px-4 py-3 font-mono" style={{ color: C.brown }}>{ph.p_value.toFixed(4)}</td>
-                            <td className="px-4 py-3">
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold"
-                                style={{ background: sig ? C.oliveLt : '#f3f4f6', color: sig ? C.olive : '#6b7280' }}>
-                                {sig ? 'Significant' : 'Not sig.'}
-                              </span>
+                          <tr key={idx}>
+                            <td className="px-3 py-2.5">{ph.A}</td>
+                            <td className="px-3 py-2.5">{ph.B}</td>
+                            <td className="px-3 py-2.5 font-mono tabular-nums">{ph.p_value.toFixed(4)}</td>
+                            <td className={cn('px-3 py-2.5', sig ? 'text-primary' : 'text-muted-foreground')}>
+                              {sig ? 'Significant' : 'Not significant'}
                             </td>
                           </tr>
                         );
@@ -481,111 +458,109 @@ export function Analyzer() {
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </section>
             )}
 
-            <div>
-              <h3 className="font-semibold text-base mb-4" style={{ color: C.brown }}>Data Quality Report</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.entries(result.cleaning_report).map(([gName, gRep]: [string, any], gi) => (
-                  <div key={gName} className="rounded-2xl p-5" style={{ background: gi % 2 === 0 ? C.oliveLt : C.orangeLt }}>
-                    <p className="font-semibold text-sm mb-4" style={{ color: C.brown }}>{gName}</p>
-                    <div className="grid grid-cols-3 gap-3">
-                      {[
-                        { label: 'Initial', value: gRep.initial_count },
-                        { label: 'Missing', value: `-${gRep.missing_removed}` },
-                        { label: 'Excluded', value: `-${gRep.criteria_removed}` },
-                        { label: 'Outliers', value: `-${gRep.outliers_removed}` },
-                        { label: 'Final', value: gRep.final_count, bold: true },
-                      ].map(({ label, value, bold }) => (
-                        <div key={label}>
-                          <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: gi % 2 === 0 ? C.olive : '#c09070' }}>{label}</p>
-                          <p className={`font-mono text-sm ${bold ? 'font-bold' : ''}`} style={{ color: C.brown }}>{value}</p>
-                        </div>
+            <section>
+              <h3 className="font-serif text-lg font-semibold mb-4">Data quality</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-y border-border">
+                  <thead>
+                    <tr className="border-b border-border">
+                      {['Group', 'Initial', 'Missing', 'Excluded', 'Outliers', 'Final'].map((h, i) => (
+                        <th key={h} scope="col" className={cn('px-3 py-2.5 eyebrow', i === 0 ? 'text-left' : 'text-right')}>{h}</th>
                       ))}
-                    </div>
-                  </div>
-                ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {Object.entries(result.cleaning_report).map(([gName, gRep]: [string, any]) => (
+                      <tr key={gName}>
+                        <td className="px-3 py-2.5">{gName}</td>
+                        <td className="px-3 py-2.5 text-right font-mono tabular-nums">{gRep.initial_count}</td>
+                        <td className="px-3 py-2.5 text-right font-mono tabular-nums text-muted-foreground">−{gRep.missing_removed}</td>
+                        <td className="px-3 py-2.5 text-right font-mono tabular-nums text-muted-foreground">−{gRep.criteria_removed}</td>
+                        <td className="px-3 py-2.5 text-right font-mono tabular-nums text-muted-foreground">−{gRep.outliers_removed}</td>
+                        <td className="px-3 py-2.5 text-right font-mono tabular-nums font-medium">{gRep.final_count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            </div>
+            </section>
 
-            <div>
-              <h3 className="font-semibold text-sm mb-3" style={{ color: C.muted }}>Flowchart Logic</h3>
-              <div className="space-y-1">
+            <section>
+              <h3 className="font-serif text-lg font-semibold mb-3">How the test was chosen</h3>
+              <dl className="border-y border-border divide-y divide-border">
                 {Object.entries(result.logic_steps).map(([k, v]) => (
-                  <div key={k} className="flex items-start gap-3 text-xs font-mono py-1 border-b" style={{ borderColor: '#ede9e3', color: C.brown }}>
-                    <span style={{ color: C.olive }}>›</span>
-                    <span style={{ color: C.muted }}>{k}:</span>
-                    <span>{String(v)}</span>
+                  <div key={k} className="grid grid-cols-[minmax(8rem,14rem)_1fr] gap-4 px-3 py-2 text-xs">
+                    <dt className="text-muted-foreground">{k}</dt>
+                    <dd className="font-mono text-foreground">{String(v)}</dd>
                   </div>
                 ))}
-              </div>
-            </div>
+              </dl>
+            </section>
 
             {/* Send to Writing */}
             {currentProject && (
-              <div className="rounded-2xl border-2 p-5" style={{ borderColor: C.olive, background: C.oliveLt }}>
-                <div className="flex items-center justify-between mb-3">
+              <section className="rounded-md border border-border bg-card p-5">
+                <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="font-semibold text-sm" style={{ color: C.brown }}>Export to Writing</p>
-                    <p className="text-xs mt-0.5" style={{ color: C.muted }}>Insert these results into a section of your paper draft.</p>
+                    <p className="text-sm font-medium">Add to your paper</p>
+                    <p className="text-sm text-muted-foreground mt-0.5">Append these results to a section of your draft.</p>
                   </div>
-                  <button
+                  <Button
+                    variant="outline"
                     onClick={() => { setShowSectionPicker(v => !v); setSendSuccess(false); }}
-                    className="flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-full text-white transition-all hover:opacity-90"
-                    style={{ background: C.olive }}
+                    aria-expanded={showSectionPicker}
                   >
-                    <Send className="w-3.5 h-3.5" /> Send to Section
-                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showSectionPicker ? 'rotate-180' : ''}`} />
-                  </button>
+                    Choose section
+                    <ChevronDown className={cn('transition-transform duration-150', showSectionPicker && 'rotate-180')} />
+                  </Button>
                 </div>
 
                 {showSectionPicker && (
-                  <div className="mt-3 animate-in fade-in slide-in-from-top-1 duration-200">
-                    <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: C.muted }}>Choose a section</p>
-                    <div className="space-y-1.5 mb-3 max-h-48 overflow-y-auto pr-1">
-                      {allSections.map(section => (
-                        <label key={section.id} className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border-2"
-                          style={{
-                            background: selectedSectionId === section.id ? '#fff' : 'transparent',
-                            borderColor: selectedSectionId === section.id ? C.olive : 'transparent',
-                          }}>
-                          <input
-                            type="radio"
-                            name="target-section"
-                            value={section.id}
-                            checked={selectedSectionId === section.id}
-                            onChange={() => setSelectedSectionId(section.id)}
-                            className="sr-only"
-                          />
-                          <div className="w-2 h-2 rounded-full shrink-0" style={{ background: selectedSectionId === section.id ? C.olive : '#d1d5db' }} />
-                          <span className="text-sm font-medium" style={{ color: C.brown }}>{section.title}</span>
-                          {section.content && (
-                            <span className="ml-auto text-[10px]" style={{ color: C.muted }}>
-                              {section.content.length > 0 ? 'has content' : ''}
+                  <div className="mt-5 pt-5 border-t border-border">
+                    <div role="radiogroup" aria-label="Target section" className="space-y-0.5 mb-4 max-h-56 overflow-y-auto">
+                      {allSections.map(section => {
+                        const on = selectedSectionId === section.id;
+                        return (
+                          <label key={section.id} className={cn('flex items-center gap-3 px-2 py-2 rounded-md cursor-pointer transition-colors duration-150',
+                            on ? 'bg-accent' : 'hover:bg-accent/50')}>
+                            <input
+                              type="radio"
+                              name="target-section"
+                              value={section.id}
+                              checked={on}
+                              onChange={() => setSelectedSectionId(section.id)}
+                              className="sr-only peer"
+                            />
+                            <span className={cn('h-3.5 w-3.5 rounded-full border flex items-center justify-center shrink-0 peer-focus-visible:ring-2 peer-focus-visible:ring-ring/40', on ? 'border-primary' : 'border-input bg-card')}>
+                              {on && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
                             </span>
-                          )}
-                        </label>
-                      ))}
+                            <span className="text-sm">{section.title}</span>
+                            {section.content && (
+                              <span className="ml-auto text-xs text-subtle-foreground">Has content</span>
+                            )}
+                          </label>
+                        );
+                      })}
                     </div>
-                    <button
+                    <Button
+                      className="w-full"
                       onClick={handleSendToSection}
                       disabled={!selectedSectionId || sendSuccess}
-                      className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50"
-                      style={{ background: sendSuccess ? C.olive : C.brown }}
                     >
-                      {sendSuccess ? '✓ Results added to section!' : 'Insert Results'}
-                    </button>
+                      {sendSuccess ? <><Check /> Results added</> : 'Insert results'}
+                    </Button>
                   </div>
                 )}
-              </div>
+              </section>
             )}
 
-            <div className="flex justify-center pt-2">
-              <button onClick={() => setStep(1)} className="flex items-center gap-2 text-sm font-semibold px-6 py-3 rounded-full border-2"
-                style={{ borderColor: '#ede9e3', color: C.brown }}>
-                <RefreshCw className="w-4 h-4" /> Analyze Another Dataset
-              </button>
+            <div className="flex justify-center border-t border-border pt-8">
+              <Button variant="ghost" onClick={() => setStep(1)}>
+                <RefreshCw /> Analyze another dataset
+              </Button>
             </div>
           </div>
         )}

@@ -1,14 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { ArrowRight, ArrowLeft, FolderOpen, Pencil, Trash2, Check, X, Search,
-         BookOpen, Loader2, ChevronDown, ChevronUp, CheckCircle2, ExternalLink } from 'lucide-react'
-import Image from 'next/image'
+import { ArrowRight, ArrowLeft, Pencil, Trash2, Check, X, Search,
+         Loader2, ChevronDown, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useBuddyStore } from '@/lib/store'
 import type { Reference } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { useConfirm } from './confirm-dialog'
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -83,6 +83,7 @@ export function Onboarding() {
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const editInputRef = useRef<HTMLInputElement>(null)
+  const { confirm } = useConfirm()
 
   useEffect(() => {
     const t = setInterval(() => setPlaceholderIndex(i => (i + 1) % PLACEHOLDER_EXAMPLES.length), 3000)
@@ -180,9 +181,15 @@ export function Onboarding() {
     selectProject(id)
     setShowOnboarding(false)
   }
-  const handleDeleteSelected = () => {
+  const handleDeleteSelected = async () => {
     if (selected.size === 0) return
-    if (!confirm(`Delete ${selected.size} project${selected.size > 1 ? 's' : ''}?`)) return
+    const ok = await confirm({
+      title: `Delete ${selected.size} paper${selected.size > 1 ? 's' : ''}?`,
+      description: 'The selected papers and all of their sections will be permanently removed.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    })
+    if (!ok) return
     selected.forEach(id => deleteProject(id))
     setSelected(new Set()); setSelectMode(false)
   }
@@ -192,124 +199,164 @@ export function Onboarding() {
   }
   const cancelEdit = (e?: React.MouseEvent) => { e?.stopPropagation(); setEditingId(null); setEditingTitle('') }
 
+  const handleDeleteOne = async (id: string, title: string) => {
+    const ok = await confirm({
+      title: 'Delete this paper?',
+      description: <>&ldquo;{title}&rdquo; and all of its sections will be permanently removed.</>,
+      confirmLabel: 'Delete',
+      destructive: true,
+    })
+    if (ok) deleteProject(id)
+  }
+
+  const toggleIn = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, id: string) =>
+    setter(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+
+  const STEPS: { key: Step; label: string }[] = [
+    { key: 'input', label: 'Topic' },
+    { key: 'questions', label: 'Scope' },
+    { key: 'recommend', label: 'Readings' },
+  ]
+  const stepIndex = STEPS.findIndex(s => s.key === step)
+
   // ── render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="flex-1 flex overflow-hidden">
+    <div className="flex-1 flex overflow-hidden bg-background">
 
-      {/* Left sidebar — existing projects */}
+      {/* Left sidebar — existing papers */}
       {projects.length > 0 && (
-        <aside className="w-80 shrink-0 flex flex-col p-4 gap-2 h-full overflow-hidden" style={{ backgroundColor: '#fef5dd', borderRight: '1px solid #e8ddd5' }}>
-          <div className="flex items-center justify-between px-2 py-3 mb-1 shrink-0">
-            <div className="flex items-center gap-2">
-              <FolderOpen className="h-4 w-4" style={{ color: '#fb804a' }} />
-              <span className="text-sm font-bold" style={{ color: '#fb804a' }}>Your Projects</span>
-            </div>
+        <aside className="w-72 shrink-0 flex flex-col h-full overflow-hidden bg-card border-r border-border">
+          <div className="flex items-center justify-between px-5 pt-6 pb-3 shrink-0">
+            <h2 className="eyebrow">Your papers</h2>
             {!selectMode
-              ? <button onClick={() => setSelectMode(true)} className="text-xs font-medium px-2.5 py-1 rounded-md border transition-colors" style={{ borderColor: '#a0ad6d', backgroundColor: '#a0ad6d', color: '#ffffff' }}>Select</button>
-              : <button onClick={() => { setSelectMode(false); setSelected(new Set()) }} className="text-xs font-medium px-2.5 py-1 rounded-md border transition-colors" style={{ borderColor: '#e8ddd5', backgroundColor: '#ffffff', color: '#8a6a5e' }}>Cancel</button>
+              ? <button onClick={() => setSelectMode(true)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Select</button>
+              : <button onClick={() => { setSelectMode(false); setSelected(new Set()) }} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Done</button>
             }
           </div>
 
           {selectMode && (
-            <div className="flex items-center justify-between px-2 pb-1 gap-2 shrink-0">
+            <div className="flex items-center justify-between px-5 pb-3 gap-2 shrink-0">
               <button onClick={() => setSelected(selected.size === filteredProjects.length ? new Set() : new Set(filteredProjects.map(p => p.id)))}
-                className="text-xs font-medium px-2.5 py-1 rounded-md border transition-colors" style={{ borderColor: '#e8ddd5', backgroundColor: '#ffffff', color: '#8a6a5e' }}>
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors">
                 {selected.size === filteredProjects.length ? 'Deselect all' : 'Select all'}
               </button>
               <button onClick={handleDeleteSelected} disabled={selected.size === 0}
-                className={cn('flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md border transition-colors',
-                  selected.size > 0 ? 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100' : 'cursor-not-allowed opacity-40')}
-                style={selected.size === 0 ? { borderColor: '#e8ddd5', backgroundColor: '#ffffff', color: '#8a6a5e' } : {}}>
+                className="flex items-center gap-1.5 text-xs text-destructive disabled:text-subtle-foreground disabled:cursor-not-allowed transition-colors">
                 <Trash2 className="h-3 w-3" /> Delete{selected.size > 0 ? ` (${selected.size})` : ''}
               </button>
             </div>
           )}
 
-          <div className="relative mb-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none" style={{ color: '#8a6a5e' }} />
-            <input type="text" placeholder="Search your projects..." value={search} onChange={e => setSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 text-sm rounded-lg outline-none transition-colors"
-              style={{ border: '1px solid #e8ddd5', backgroundColor: '#ffffff', color: '#381d18' }} />
+          <div className="px-5 pb-3 shrink-0">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none text-subtle-foreground" />
+              <input type="text" placeholder="Search" value={search} onChange={e => setSearch(e.target.value)}
+                aria-label="Search papers"
+                className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md outline-none border border-input bg-card focus:border-ring transition-colors" />
+            </div>
           </div>
 
-          <div className="overflow-y-auto flex-1 min-h-0 flex flex-col gap-2 pr-0.5">
-            {filteredProjects.map(project => (
-              <div key={project.id} className={cn('w-full text-left px-3 py-3 rounded-xl transition-all group flex items-start gap-2')}
-                style={{ border: selectMode && selected.has(project.id) ? '1px solid #a0ad6d' : '1px solid transparent', backgroundColor: selectMode && selected.has(project.id) ? '#f0f3e0' : 'transparent' }}>
-                {selectMode && (
-                  <button onClick={() => handleSelectExisting(project.id)}
-                    className="mt-0.5 h-4 w-4 shrink-0 rounded flex items-center justify-center transition-colors"
-                    style={{ border: selected.has(project.id) ? '1px solid #381d18' : '1px solid #d1c4be', backgroundColor: selected.has(project.id) ? '#381d18' : '#ffffff' }}>
-                    {selected.has(project.id) && <Check className="h-2.5 w-2.5 text-white" />}
-                  </button>
-                )}
-                {editingId === project.id ? (
-                  <div className="flex items-center gap-1 flex-1 min-w-0" onClick={e => e.stopPropagation()}>
-                    <input ref={editInputRef} value={editingTitle} onChange={e => setEditingTitle(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit() }}
-                      onBlur={commitEdit}
-                      className="flex-1 min-w-0 text-sm font-medium rounded px-2 py-0.5 outline-none"
-                      style={{ backgroundColor: '#fef5dd', border: '1px solid #a0ad6d', color: '#381d18' }} />
-                    <button onMouseDown={e => { e.preventDefault(); commitEdit() }} className="h-5 w-5 flex items-center justify-center rounded shrink-0" style={{ color: '#381d18' }}><Check className="h-3 w-3" /></button>
-                    <button onMouseDown={e => { e.preventDefault(); cancelEdit(e) }} className="h-5 w-5 flex items-center justify-center rounded shrink-0" style={{ color: '#8a6a5e' }}><X className="h-3 w-3" /></button>
-                  </div>
-                ) : (
-                  <>
-                    <button className="flex-1 min-w-0 text-left" onClick={() => handleSelectExisting(project.id)}>
-                      <div className="font-bold text-sm line-clamp-2 transition-colors" style={{ color: '#fb804a' }}>{project.title}</div>
+          <ul className="overflow-y-auto flex-1 min-h-0 px-2 pb-4">
+            {filteredProjects.map(project => {
+              const isSel = selectMode && selected.has(project.id)
+              return (
+                <li key={project.id} className={cn('group flex items-start gap-2 px-3 py-2.5 rounded-md transition-colors duration-150', isSel ? 'bg-primary-soft' : 'hover:bg-accent/60')}>
+                  {selectMode && (
+                    <button onClick={() => handleSelectExisting(project.id)} aria-label={isSel ? 'Deselect' : 'Select'}
+                      className={cn('mt-0.5 h-4 w-4 shrink-0 rounded-sm border flex items-center justify-center transition-colors',
+                        isSel ? 'bg-primary border-primary text-primary-foreground' : 'border-input bg-card')}>
+                      {isSel && <Check className="h-3 w-3" />}
                     </button>
-                    {!selectMode && (
-                      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
-                        <button onClick={e => { e.stopPropagation(); setEditingId(project.id); setEditingTitle(project.title) }}
-                          className="h-6 w-6 flex items-center justify-center rounded" style={{ color: '#8a6a5e' }} title="Rename">
-                          <Pencil className="h-3 w-3" />
-                        </button>
-                        <button onClick={e => { e.stopPropagation(); if (confirm('Delete this project?')) deleteProject(project.id) }}
-                          className="h-6 w-6 flex items-center justify-center rounded" style={{ color: '#8a6a5e' }} title="Delete">
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
+                  )}
+                  {editingId === project.id ? (
+                    <div className="flex items-center gap-1 flex-1 min-w-0" onClick={e => e.stopPropagation()}>
+                      <input ref={editInputRef} value={editingTitle} onChange={e => setEditingTitle(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit() }}
+                        onBlur={commitEdit}
+                        className="flex-1 min-w-0 text-sm rounded-sm px-1.5 py-0.5 outline-none border border-ring bg-card" />
+                      <button onMouseDown={e => { e.preventDefault(); commitEdit() }} className="h-5 w-5 flex items-center justify-center text-primary shrink-0" aria-label="Save"><Check className="h-3 w-3" /></button>
+                      <button onMouseDown={e => { e.preventDefault(); cancelEdit(e) }} className="h-5 w-5 flex items-center justify-center text-muted-foreground shrink-0" aria-label="Cancel"><X className="h-3 w-3" /></button>
+                    </div>
+                  ) : (
+                    <>
+                      <button className="flex-1 min-w-0 text-left" onClick={() => handleSelectExisting(project.id)}>
+                        <span className="block text-sm text-foreground line-clamp-2 leading-snug">{project.title}</span>
+                        <span className="block text-xs text-subtle-foreground mt-0.5">
+                          Edited {new Date(project.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                        </span>
+                      </button>
+                      {!selectMode && (
+                        <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
+                          <button onClick={e => { e.stopPropagation(); setEditingId(project.id); setEditingTitle(project.title) }}
+                            className="h-6 w-6 flex items-center justify-center rounded text-subtle-foreground hover:text-foreground" title="Rename">
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                          <button onClick={e => { e.stopPropagation(); handleDeleteOne(project.id, project.title) }}
+                            className="h-6 w-6 flex items-center justify-center rounded text-subtle-foreground hover:text-destructive" title="Delete">
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
         </aside>
       )}
 
       {/* Main */}
-      <div className="flex-1 flex items-center justify-center p-8 overflow-y-auto">
-        <div className={step === 'recommend' ? 'w-full max-w-5xl' : 'w-full max-w-xl'}>
+      <div className="flex-1 overflow-y-auto">
+        <div className={cn('mx-auto px-10 py-16', step === 'recommend' ? 'max-w-5xl' : 'max-w-2xl')}>
+
+          {/* Step indicator */}
+          <ol className="flex items-center gap-3 mb-12 text-sm" aria-label="Progress">
+            {STEPS.map((s, i) => {
+              const done = i < stepIndex
+              const active = i === stepIndex
+              return (
+                <li key={s.key} className="flex items-center gap-3">
+                  <span className={cn('flex items-center gap-2', active ? 'text-foreground' : done ? 'text-muted-foreground' : 'text-subtle-foreground')}>
+                    <span className={cn('h-6 w-6 rounded-full border flex items-center justify-center text-xs tabular-nums',
+                      active ? 'border-primary bg-primary text-primary-foreground' : done ? 'border-primary text-primary' : 'border-input')}>
+                      {done ? <Check className="h-3 w-3" /> : i + 1}
+                    </span>
+                    <span className={active ? 'font-medium' : ''}>{s.label}</span>
+                  </span>
+                  {i < STEPS.length - 1 && <span className="w-10 h-px bg-border" />}
+                </li>
+              )
+            })}
+          </ol>
+
+          {error && (
+            <div role="alert" className="mb-6 px-4 py-3 rounded-md text-sm border border-destructive/30 bg-destructive/5 text-destructive">{error}</div>
+          )}
 
           {/* ── STEP 1: topic input ── */}
           {step === 'input' && (
             <>
-              <div className="text-center mb-8">
-                <div className="flex justify-center mb-4">
-                  <Image src="/BUDDY_LOGO_CIRCLE.png" alt="Buddy" width={96} height={96} className="object-contain" />
-                </div>
-                <h1 className="font-serif text-3xl font-bold mb-1" style={{ color: '#381d18' }}>Hey, Buddy!</h1>
-                <p className="text-sm" style={{ color: '#8a6a5e' }}>Tell me what you'd like to research and I'll guide you through it.</p>
-              </div>
+              <h1 className="font-serif text-[2rem] leading-tight font-semibold mb-3">Start a new paper</h1>
+              <p className="text-muted-foreground leading-relaxed mb-8 max-w-xl">
+                Describe your research topic in a sentence or two. Buddy will ask a few questions to narrow the scope, then suggest starting literature.
+              </p>
 
-              {error && <div className="mb-4 p-3 rounded-xl text-sm text-red-700 bg-red-50 border border-red-200">{error}</div>}
-
-              <div className="space-y-4">
-                <div className="border rounded-2xl px-5 py-4 transition-all shadow-sm" style={{ backgroundColor: '#fef5dd', borderColor: '#fb804a' }}>
-                  <Textarea
-                    placeholder={PLACEHOLDER_EXAMPLES[placeholderIndex]}
-                    value={topic}
-                    onChange={e => setTopic(e.target.value)}
-                    rows={5}
-                    disabled={loadingQuestions}
-                    onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleGetQuestions() }}
-                    className="bg-transparent border-0 focus-visible:ring-0 px-1 py-0 text-lg placeholder:text-muted-foreground/50 resize-none font-medium leading-relaxed disabled:opacity-60"
-                    style={{ color: '#381d18' }}
-                  />
-                </div>
-                <Button onClick={handleGetQuestions} disabled={!topic.trim() || loadingQuestions} className="w-full gap-2 text-white font-semibold py-6 rounded-xl" style={{ backgroundColor: '#381d18' }}>
-                  {loadingQuestions ? <><Loader2 className="h-4 w-4 animate-spin" /> Thinking about your research…</> : <>Let's get started <ArrowRight className="h-4 w-4" /></>}
+              <label htmlFor="topic" className="eyebrow block mb-2">Research topic</label>
+              <Textarea
+                id="topic"
+                placeholder={PLACEHOLDER_EXAMPLES[placeholderIndex]}
+                value={topic}
+                onChange={e => setTopic(e.target.value)}
+                rows={4}
+                disabled={loadingQuestions}
+                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleGetQuestions() }}
+                className="font-serif text-lg md:text-lg leading-relaxed px-4 py-3 resize-none placeholder:text-subtle-foreground"
+              />
+              <div className="mt-5 flex items-center justify-between">
+                <span className="text-xs text-subtle-foreground">Ctrl + Enter to continue</span>
+                <Button onClick={handleGetQuestions} disabled={!topic.trim() || loadingQuestions} size="lg">
+                  {loadingQuestions ? <><Loader2 className="animate-spin" /> Preparing questions…</> : <>Continue <ArrowRight /></>}
                 </Button>
               </div>
             </>
@@ -318,44 +365,36 @@ export function Onboarding() {
           {/* ── STEP 2: clarifying questions ── */}
           {step === 'questions' && (
             <>
-              <button onClick={() => setStep('input')} className="flex items-center gap-1.5 text-sm mb-6 hover:opacity-70 transition-opacity" style={{ color: '#8a6a5e' }}>
-                <ArrowLeft className="h-4 w-4" /> Back
-              </button>
+              <h1 className="font-serif text-[2rem] leading-tight font-semibold mb-3">Refine the scope</h1>
+              <p className="text-muted-foreground leading-relaxed mb-8">
+                Answer whichever questions you can. Your answers guide the literature search.
+              </p>
 
-              <div className="mb-6">
-                <h2 className="font-serif text-2xl font-bold mb-1" style={{ color: '#381d18' }}>Let's refine your study</h2>
-                <p className="text-sm" style={{ color: '#8a6a5e' }}>Answer as many as you can — Buddy will use these to find the best literature for you.</p>
-              </div>
-
-              {error && <div className="mb-4 p-3 rounded-xl text-sm text-red-700 bg-red-50 border border-red-200">{error}</div>}
-
-              <div className="space-y-3 mb-6">
+              <div className="border-y border-border divide-y divide-border mb-8">
                 {questions.map((q, i) => {
                   const isOpen = openQuestion === q.id
                   const answered = !!answers[q.id]?.trim()
                   return (
-                    <div key={q.id} className="rounded-2xl border overflow-hidden transition-all" style={{ borderColor: isOpen ? '#a0ad6d' : '#e8ddd5', backgroundColor: '#ffffff' }}>
+                    <div key={q.id}>
                       <button
-                        className="w-full flex items-center justify-between px-5 py-4 text-left"
+                        className="w-full flex items-start gap-4 py-4 text-left"
                         onClick={() => setOpenQuestion(isOpen ? null : q.id)}
+                        aria-expanded={isOpen}
                       >
-                        <div className="flex items-start gap-3 flex-1 min-w-0">
-                          <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 text-white" style={{ backgroundColor: answered ? '#a0ad6d' : '#381d18' }}>
-                            {answered ? <Check className="h-3.5 w-3.5" /> : i + 1}
-                          </span>
-                          <span className="text-sm font-medium leading-snug" style={{ color: '#381d18' }}>{q.question}</span>
-                        </div>
-                        {isOpen ? <ChevronUp className="h-4 w-4 shrink-0" style={{ color: '#a0ad6d' }} /> : <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" />}
+                        <span className={cn('w-6 text-sm tabular-nums pt-px', answered ? 'text-primary' : 'text-subtle-foreground')}>
+                          {answered ? <Check className="h-4 w-4 mt-0.5" /> : String(i + 1).padStart(2, '0')}
+                        </span>
+                        <span className="flex-1 text-[0.95rem] leading-snug text-foreground">{q.question}</span>
+                        <ChevronDown className={cn('h-4 w-4 shrink-0 mt-0.5 text-subtle-foreground transition-transform duration-150', isOpen && 'rotate-180')} />
                       </button>
                       {isOpen && (
-                        <div className="px-5 pb-4">
-                          <textarea
+                        <div className="pl-10 pb-5">
+                          <Textarea
                             rows={3}
                             placeholder={q.placeholder}
                             value={answers[q.id] ?? ''}
                             onChange={e => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
-                            className="w-full text-sm px-4 py-3 rounded-xl border outline-none resize-none transition-colors"
-                            style={{ backgroundColor: '#fef5dd', borderColor: '#e8ddd5', color: '#381d18' }}
+                            className="resize-none"
                           />
                         </div>
                       )}
@@ -364,108 +403,126 @@ export function Onboarding() {
                 })}
               </div>
 
-              <Button onClick={handleGetRecommendations} disabled={loadingRecommend} className="w-full gap-2 text-white font-semibold py-6 rounded-xl" style={{ backgroundColor: '#381d18' }}>
-                {loadingRecommend
-                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Finding your starting literature…</>
-                  : <><BookOpen className="h-4 w-4" /> Show me recommended readings <ArrowRight className="h-4 w-4" /></>}
-              </Button>
+              <div className="flex items-center justify-between">
+                <Button variant="ghost" onClick={() => setStep('input')}><ArrowLeft /> Back</Button>
+                <Button onClick={handleGetRecommendations} disabled={loadingRecommend} size="lg">
+                  {loadingRecommend
+                    ? <><Loader2 className="animate-spin" /> Searching the literature…</>
+                    : <>Find readings <ArrowRight /></>}
+                </Button>
+              </div>
             </>
           )}
 
           {/* ── STEP 3: recommendations ── */}
           {step === 'recommend' && (
             <>
-              <button onClick={() => setStep('questions')} className="flex items-center gap-1.5 text-sm mb-6 hover:opacity-70 transition-opacity" style={{ color: '#8a6a5e' }}>
-                <ArrowLeft className="h-4 w-4" /> Back
-              </button>
+              <h1 className="font-serif text-[2rem] leading-tight font-semibold mb-3">Starting readings</h1>
+              <p className="text-muted-foreground leading-relaxed mb-10">
+                Select the papers to add to your project. You can add more at any time from the writing view.
+              </p>
 
-              <div className="mb-6">
-                <h2 className="font-serif text-2xl font-bold mb-1" style={{ color: '#381d18' }}>Your starting readings</h2>
-                <p className="text-sm" style={{ color: '#8a6a5e' }}>Select the papers you want pre-loaded in your project. You can always add more later.</p>
-              </div>
-
-              {error && <div className="mb-4 p-3 rounded-xl text-sm text-red-700 bg-red-50 border border-red-200">{error}</div>}
-
-              {/* 2-column grid */}
-              <div className="grid grid-cols-2 gap-5 mb-6">
-
+              <div className="grid md:grid-cols-2 gap-10 mb-10">
                 {/* RRL column */}
-                <div className="flex flex-col min-h-0">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: '#a0ad6d' }}>RRL</h3>
-                    <button className="text-xs underline" style={{ color: '#8a6a5e' }}
-                      onClick={() => setSelectedRrl(selectedRrl.size === rrlPapers.length ? new Set() : new Set(rrlPapers.map(p => p.id)))}>
-                      {selectedRrl.size === rrlPapers.length ? 'Deselect all' : 'Select all'}
-                    </button>
+                <section>
+                  <div className="flex items-end justify-between gap-4 pb-3 border-b border-border">
+                    <div>
+                      <h2 className="font-serif text-lg font-semibold">Related literature</h2>
+                      <p className="text-xs text-muted-foreground mt-0.5">Published studies from OpenAlex</p>
+                    </div>
+                    {rrlPapers.length > 0 && (
+                      <button className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors shrink-0"
+                        onClick={() => setSelectedRrl(selectedRrl.size === rrlPapers.length ? new Set() : new Set(rrlPapers.map(p => p.id)))}>
+                        {selectedRrl.size === rrlPapers.length ? 'Deselect all' : 'Select all'}
+                      </button>
+                    )}
                   </div>
-                  <div className="space-y-2">
+                  <ul className="divide-y divide-border">
                     {rrlPapers.map(paper => {
                       const on = selectedRrl.has(paper.id)
                       return (
-                        <div key={paper.id}
-                          className="flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all"
-                          style={{ borderColor: on ? '#a0ad6d' : '#e8ddd5', backgroundColor: on ? '#f0f3e0' : '#ffffff' }}
-                          onClick={() => setSelectedRrl(prev => { const n = new Set(prev); on ? n.delete(paper.id) : n.add(paper.id); return n })}>
-                          <div className="mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors"
-                            style={{ borderColor: on ? '#a0ad6d' : '#d1d5db', backgroundColor: on ? '#a0ad6d' : 'transparent' }}>
-                            {on && <Check className="h-3 w-3 text-white" />}
-                          </div>
+                        <li key={paper.id}
+                          role="checkbox" aria-checked={on} tabIndex={0}
+                          className="flex items-start gap-3 py-4 cursor-pointer group"
+                          onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleIn(setSelectedRrl, paper.id) } }}
+                          onClick={() => toggleIn(setSelectedRrl, paper.id)}>
+                          <span className={cn('mt-0.5 w-4 h-4 rounded-sm border flex items-center justify-center shrink-0 transition-colors duration-150',
+                            on ? 'bg-primary border-primary text-primary-foreground' : 'border-input bg-card group-hover:border-subtle-foreground')}>
+                            {on && <Check className="h-3 w-3" />}
+                          </span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold leading-snug mb-0.5" style={{ color: '#381d18' }}>{paper.title}</p>
-                            <p className="text-xs" style={{ color: '#8a6a5e' }}>{paper.authors.slice(0, 2).join(', ')}{paper.authors.length > 2 ? ' et al.' : ''} · {paper.year}{paper.journal ? ` · ${paper.journal}` : ''}</p>
-                            {paper.abstract && <p className="text-xs mt-1.5 line-clamp-2" style={{ color: '#6b5a52' }}>{paper.abstract}</p>}
+                            <p className="text-sm font-medium leading-snug text-foreground">{paper.title}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {paper.authors.slice(0, 2).join(', ')}{paper.authors.length > 2 ? ' et al.' : ''} · {paper.year}
+                              {paper.journal && <> · <i>{paper.journal}</i></>}
+                            </p>
+                            {paper.abstract && <p className="text-xs text-subtle-foreground mt-1.5 line-clamp-2 leading-relaxed">{paper.abstract}</p>}
                           </div>
                           {paper.doi && (
                             <a href={paper.doi.startsWith('http') ? paper.doi : `https://doi.org/${paper.doi}`} target="_blank" rel="noreferrer"
-                              onClick={e => e.stopPropagation()} className="shrink-0 mt-0.5 hover:opacity-70 transition-opacity">
-                              <ExternalLink className="h-3.5 w-3.5" style={{ color: '#a0ad6d' }} />
+                              onClick={e => e.stopPropagation()} className="shrink-0 mt-0.5 text-subtle-foreground hover:text-primary transition-colors" title="Open DOI">
+                              <ExternalLink className="h-3.5 w-3.5" />
                             </a>
                           )}
-                        </div>
+                        </li>
                       )
                     })}
-                  </div>
-                </div>
+                  </ul>
+                </section>
 
                 {/* RRW column */}
-                <div className="flex flex-col min-h-0">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: '#fb804a' }}>RRW</h3>
-                    <button className="text-xs underline" style={{ color: '#8a6a5e' }}
-                      onClick={() => setSelectedRrw(selectedRrw.size === rrwPapers.length ? new Set() : new Set(rrwPapers.map(p => p.id)))}>
-                      {selectedRrw.size === rrwPapers.length ? 'Deselect all' : 'Select all'}
-                    </button>
+                <section>
+                  <div className="flex items-end justify-between gap-4 pb-3 border-b border-border">
+                    <div>
+                      <h2 className="font-serif text-lg font-semibold">Recommended reading</h2>
+                      <p className="text-xs text-muted-foreground mt-0.5">Foundational works suggested for your scope</p>
+                    </div>
+                    {rrwPapers.length > 0 && (
+                      <button className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors shrink-0"
+                        onClick={() => setSelectedRrw(selectedRrw.size === rrwPapers.length ? new Set() : new Set(rrwPapers.map(p => p.id)))}>
+                        {selectedRrw.size === rrwPapers.length ? 'Deselect all' : 'Select all'}
+                      </button>
+                    )}
                   </div>
-                  <div className="space-y-2">
+                  {rrwPapers.length === 0 && (
+                    <p className="text-sm text-muted-foreground py-4">No additional recommendations for this scope.</p>
+                  )}
+                  <ul className="divide-y divide-border">
                     {rrwPapers.map(paper => {
                       const on = selectedRrw.has(paper.id)
                       return (
-                        <div key={paper.id}
-                          className="flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all"
-                          style={{ borderColor: on ? '#fb804a' : '#e8ddd5', backgroundColor: on ? '#fef5dd' : '#ffffff' }}
-                          onClick={() => setSelectedRrw(prev => { const n = new Set(prev); on ? n.delete(paper.id) : n.add(paper.id); return n })}>
-                          <div className="mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors"
-                            style={{ borderColor: on ? '#fb804a' : '#d1d5db', backgroundColor: on ? '#fb804a' : 'transparent' }}>
-                            {on && <Check className="h-3 w-3 text-white" />}
-                          </div>
+                        <li key={paper.id}
+                          role="checkbox" aria-checked={on} tabIndex={0}
+                          className="flex items-start gap-3 py-4 cursor-pointer group"
+                          onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleIn(setSelectedRrw, paper.id) } }}
+                          onClick={() => toggleIn(setSelectedRrw, paper.id)}>
+                          <span className={cn('mt-0.5 w-4 h-4 rounded-sm border flex items-center justify-center shrink-0 transition-colors duration-150',
+                            on ? 'bg-primary border-primary text-primary-foreground' : 'border-input bg-card group-hover:border-subtle-foreground')}>
+                            {on && <Check className="h-3 w-3" />}
+                          </span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold leading-snug mb-0.5" style={{ color: '#381d18' }}>{paper.title}</p>
-                            <p className="text-xs mb-1.5" style={{ color: '#8a6a5e' }}>{paper.authors.join(', ')} · {paper.year}</p>
-                            <p className="text-xs italic" style={{ color: '#6b5a52' }}>Why read this: {paper.why}</p>
+                            <p className="text-sm font-medium leading-snug text-foreground">{paper.title}</p>
+                            <p className="text-xs text-muted-foreground mt-1">{paper.authors.join(', ')} · {paper.year}</p>
+                            <p className="text-xs text-subtle-foreground mt-1.5 leading-relaxed"><span className="text-muted-foreground">Why read this:</span> {paper.why}</p>
                           </div>
-                        </div>
+                        </li>
                       )
                     })}
-                  </div>
-                </div>
-
+                  </ul>
+                </section>
               </div>
 
-              <Button onClick={handleCreateProject} disabled={isCreating} className="w-full gap-2 text-white font-semibold py-6 rounded-xl" style={{ backgroundColor: '#a0ad6d' }}>
-                {isCreating
-                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Setting up your project…</>
-                  : <><CheckCircle2 className="h-4 w-4" /> Start Research ({selectedRrl.size + selectedRrw.size} papers selected) <ArrowRight className="h-4 w-4" /></>}
-              </Button>
+              <div className="flex items-center justify-between border-t border-border pt-6">
+                <Button variant="ghost" onClick={() => setStep('questions')}><ArrowLeft /> Back</Button>
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-muted-foreground tabular-nums">{selectedRrl.size + selectedRrw.size} selected</span>
+                  <Button onClick={handleCreateProject} disabled={isCreating} size="lg">
+                    {isCreating
+                      ? <><Loader2 className="animate-spin" /> Creating project…</>
+                      : <>Create project <ArrowRight /></>}
+                  </Button>
+                </div>
+              </div>
             </>
           )}
 

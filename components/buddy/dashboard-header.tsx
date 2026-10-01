@@ -1,78 +1,91 @@
 'use client'
 
 import Image from 'next/image'
-import { LayoutGrid, PenTool, Network, TestTube2, Library, Plus } from 'lucide-react'
+import { MessageSquare, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ProjectSwitcher } from './project-switcher'
 import { UserProfile } from './user-profile'
 import { useBuddyStore } from '@/lib/store'
 import type { ViewMode } from '@/lib/types'
+import { cn } from '@/lib/utils'
 
 interface DashboardHeaderProps {
   showProjectActions?: boolean
 }
 
-export function DashboardHeader({ showProjectActions = true }: DashboardHeaderProps) {
-  const { viewMode, setViewMode, getCurrentProject, setShowOnboarding } = useBuddyStore()
-  const project = getCurrentProject()
+const VIEW_MODES: { mode: ViewMode; label: string }[] = [
+  { mode: 'dashboard', label: 'Overview' },
+  { mode: 'writing', label: 'Writing' },
+  { mode: 'canvas', label: 'Canvas' },
+  { mode: 'analyzer', label: 'Statistics' },
+  { mode: 'literature', label: 'Literature' },
+]
 
-  const viewModes: { mode: ViewMode; label: string; icon: React.ReactNode }[] = [
-    { mode: 'dashboard', label: 'Dashboard', icon: <LayoutGrid className="h-4 w-4" /> },
-    { mode: 'canvas', label: 'Canvas', icon: <Network className="h-4 w-4" /> },
-    { mode: 'writing', label: 'Writing', icon: <PenTool className="h-4 w-4" /> },
-    { mode: 'analyzer', label: 'Stats', icon: <TestTube2 className="h-4 w-4" /> },
-    { mode: 'literature', label: 'Lit Gap', icon: <Library className="h-4 w-4" /> },
-  ]
+export function DashboardHeader({ showProjectActions = true }: DashboardHeaderProps) {
+  const { viewMode, setViewMode, getCurrentProject, setShowOnboarding, chatSidebarOpen, setChatSidebarOpen } = useBuddyStore()
+  const project = getCurrentProject()
+  const showNav = project && showProjectActions
 
   return (
-    <header className="h-14 border-b border-white/10 flex items-center justify-between px-4" style={{ backgroundColor: '#381d18' }}>
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <Image src="/BUDDY_LOGO_CIRCLE.png" alt="Buddy" width={36} height={36} className="object-contain rounded-full" />
-          <span className="font-serif font-semibold text-lg tracking-tight text-white">Buddy</span>
+    <header className="h-14 shrink-0 border-b border-border bg-card flex items-center justify-between px-5 gap-6">
+      <div className="flex items-center gap-4 min-w-0">
+        <div className="flex items-center gap-2.5 shrink-0">
+          <Image src="/BUDDY_LOGO_CIRCLE.png" alt="" width={28} height={28} className="object-contain rounded-full" />
+          <span className="font-serif text-lg font-semibold tracking-tight text-foreground">Buddy</span>
         </div>
 
         {showProjectActions && (
           <>
-            <div className="h-6 w-px bg-white/20" />
+            <div className="h-5 w-px bg-border shrink-0" />
             <ProjectSwitcher />
           </>
         )}
       </div>
 
-      <div className="flex items-center gap-2 ml-auto">
-        {project && showProjectActions && (
+      {showNav && (
+        <nav aria-label="Views" className="hidden md:flex items-stretch h-full gap-1">
+          {VIEW_MODES.map(({ mode, label }) => {
+            const active = viewMode === mode
+            return (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                aria-current={active ? 'page' : undefined}
+                className={cn(
+                  'relative px-3 text-sm transition-colors duration-150',
+                  active ? 'text-foreground font-medium' : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {label}
+                <span
+                  className={cn(
+                    'absolute left-3 right-3 bottom-0 h-0.5 bg-primary transition-opacity duration-150',
+                    active ? 'opacity-100' : 'opacity-0',
+                  )}
+                />
+              </button>
+            )
+          })}
+        </nav>
+      )}
+
+      <div className="flex items-center gap-3 shrink-0">
+        {showNav && (
           <>
             <Button
               variant="ghost"
               size="sm"
-              className="gap-2 text-white/70 hover:text-white hover:bg-white/10"
-              onClick={() => setShowOnboarding(true)}
+              aria-pressed={chatSidebarOpen}
+              className={cn(chatSidebarOpen ? 'bg-accent text-foreground' : 'text-muted-foreground')}
+              onClick={() => setChatSidebarOpen(!chatSidebarOpen)}
             >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">New Project</span>
+              <MessageSquare />
+              Assistant
             </Button>
-
-            <div className="flex items-center rounded-lg p-1" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
-              {viewModes.map(({ mode, label, icon }) => (
-                <Button
-                  key={mode}
-                  variant="ghost"
-                  size="sm"
-                  className={`gap-2 transition-colors ${
-                    viewMode === mode
-                      ? 'text-white'
-                      : 'text-white/60 hover:text-white'
-                  }`}
-                  style={viewMode === mode ? { backgroundColor: '#a0ad6d' } : {}}
-                  onClick={() => setViewMode(mode)}
-                >
-                  {icon}
-                  {viewMode === mode && <span className="hidden sm:inline">{label}</span>}
-                </Button>
-              ))}
-            </div>
-
+            <Button variant="outline" size="sm" onClick={() => setShowOnboarding(true)}>
+              <Plus />
+              New paper
+            </Button>
           </>
         )}
         <UserProfile />
