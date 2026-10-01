@@ -364,7 +364,7 @@ export function WritingView() {
     },
     onUpdate: ({ editor }) => {
       if (!selectedSectionId) return;
-      const md = editor.storage.markdown.getMarkdown();
+      const md = (editor.storage as any).markdown.getMarkdown();
       updateSection(selectedSectionId, { content: md });
     },
     onSelectionUpdate: ({ editor }) => {
@@ -407,7 +407,7 @@ export function WritingView() {
     if (!editor) return;
     const md = currentSection?.content || '';
     // Only reset if the content actually differs to avoid cursor jumping
-    const current = editor.storage.markdown.getMarkdown();
+    const current = (editor.storage as any).markdown.getMarkdown();
     if (current !== md) {
       editor.commands.setContent(md);
     }

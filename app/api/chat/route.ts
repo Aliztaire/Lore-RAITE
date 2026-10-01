@@ -6,15 +6,11 @@ import {
   UIMessage,
   tool,
 } from "ai";
-import { createGroq } from "@ai-sdk/groq";
+import { hfModel } from "@/lib/hf";
 import { z } from "zod";
 import axios from "axios";
 
 export const maxDuration = 30;
-
-const groq = createGroq({
-  apiKey: process.env.GROQ_API_KEY,
-});
 
 const SYSTEM_PROMPT = `You are Buddy, an AI research assistant specialized in academic writing and literature reviews. Your primary goal is to help researchers conduct a Review of Related Literature (RRL).
 
@@ -39,12 +35,12 @@ Be academic, precise, and encouraging.`;
 
 function mockStreamResponse() {
   const text =
-    "**NOTE:** AI backend bypassed (no GROQ_API_KEY set). Set GROQ_API_KEY in .env.local to enable real responses.\n\nThis is a mock reply so the UI remains functional.";
+    "**NOTE:** AI backend bypassed (no HF_API_TOKEN set). Set HF_API_TOKEN in .env.local to enable real responses.\n\nThis is a mock reply so the UI remains functional.";
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     start(controller) {
-      for (const chunk of text.match(/.{1,20}/gs) ?? [text]) {
-        controller.enqueue(encoder.encode(chunk));
+      for (let i = 0; i < text.length; i += 20) {
+        controller.enqueue(encoder.encode(text.slice(i, i + 20)));
       }
       controller.close();
     },
@@ -55,7 +51,7 @@ function mockStreamResponse() {
 }
 
 export async function POST(req: Request) {
-  if (!process.env.GROQ_API_KEY) {
+  if (!process.env.HF_API_TOKEN) {
     return mockStreamResponse();
   }
   const {
@@ -102,7 +98,6 @@ export async function POST(req: Request) {
 
   const modelMessages = await convertToModelMessages(normalizedUIMessages);
 
-  // Sanitize tool calls — Groq requires args to never be null/undefined
   const sanitizedMessages = (modelMessages || []).map((m: any) => {
     if (m.role === "assistant" && Array.isArray(m.toolCalls)) {
       return {
@@ -118,7 +113,7 @@ export async function POST(req: Request) {
 
   try {
     const result = await streamText({
-      model: groq("llama-3.3-70b-versatile"),
+      model: hfModel(),
       system: systemPrompt,
       messages: sanitizedMessages,
       stopWhen: stepCountIs(5),

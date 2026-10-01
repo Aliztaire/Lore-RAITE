@@ -235,7 +235,8 @@ export const useBuddyStore = create<BuddyStore>()(
           updatedAt: new Date().toISOString(),
           outline,
           nodes: createInitialNodes(outline),
-          edges: createInitialEdges(outline)
+          edges: createInitialEdges(outline),
+          bibliography: []
         }
         
         set(state => ({

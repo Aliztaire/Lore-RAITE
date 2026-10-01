@@ -31,12 +31,12 @@ The repo was intentionally bypassed so a fresh clone runs with `npm install && n
 
 - **Firebase is stubbed.** `lib/firebase.ts`, `lib/firestore-service.ts`, and `components/auth-provider.tsx` no longer touch Firebase. A mock user (`local-dev-user`) is "signed in" and projects persist via Zustand's `localStorage` middleware.
 - **`app/login/page.tsx`** redirects to `/`.
-- **All 5 Groq API routes** (`chat`, `onboarding`, `suggest-title`, `find-reference`, `transcribe`) short-circuit to mock responses when `GROQ_API_KEY` is not set, so the UI stays functional.
+- **All 5 AI API routes** (`chat`, `onboarding`, `suggest-title`, `find-reference`, `transcribe`) short-circuit to mock responses when `HF_API_TOKEN` is not set. One Hugging Face token powers everything — text via the HF router (Llama 3.3 70B Instruct) and transcription via Whisper-large-v3.
 - **OpenAlex** calls still work (no key needed) — onboarding recommendations and chat tool-calling still return real papers.
 
 ### What needs real credentials
 
-- Set `GROQ_API_KEY` in `.env.local` to re-enable real AI generation and Whisper transcription.
+- Set `HF_API_TOKEN` in `.env.local` to re-enable real AI generation and voice-note transcription (one token, both uses).
 - To re-enable Firebase sync (Google OAuth + Firestore project storage), restore the original versions of the three stubbed files from git history (`git log -- lib/firebase.ts`) and fill in the `NEXT_PUBLIC_FIREBASE_*` vars.
 
 ### Known loose ends
@@ -72,7 +72,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
-The frontend calls `http://localhost:8000`. Backend reads `GROQ_API_KEY` from the project-root `.env.local`.
+The frontend calls `http://localhost:8000`. Backend reads `HF_API_TOKEN` from the project-root `.env.local`.
 
 ### Build
 ```bash
@@ -97,7 +97,8 @@ npm start
 │    chat / onboarding / suggest-title /                   │
 │    find-reference / transcribe                           │
 │         │                                                │
-│         ├─► Groq (llama-3.3-70b-versatile, whisper-v3)   │
+│         ├─► Hugging Face router (Llama-3.3-70B-Instruct) │
+│         ├─► Hugging Face Whisper-large-v3 (transcribe)   │
 │         └─► OpenAlex REST (api.openalex.org/works)       │
 │                                                          │
 │  Firebase (stubbed) — intended for Auth + Firestore sync │
@@ -107,7 +108,7 @@ npm start
 ┌──────────────────────────────────────────────────────────┐
 │  Python FastAPI — localhost:8000                         │
 │    POST /analyze           — scipy/pingouin test picker  │
-│    POST /analyze-literature — Groq + PyMuPDF gap check   │
+│    POST /analyze-literature — HF Llama + PyMuPDF gaps    │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -233,17 +234,17 @@ Every mutating action also fires `firestoreService.updateProject(...)` — curre
 ### Next.js routes (`app/api/*`)
 | Route | Method | Behaviour (real) | Behaviour (no `GROQ_API_KEY`) |
 |---|---|---|---|
-| `/api/chat` | POST | Groq streaming chat w/ OpenAlex tool | Mock stream, text explaining bypass |
-| `/api/onboarding` | POST (`step: 'questions' \| 'recommend'`) | Groq questions + OpenAlex papers + Groq RRW | Hard-coded fallback questions + OpenAlex only |
-| `/api/suggest-title` | POST | 3 Groq-generated titles | Templated titles from input |
-| `/api/find-reference` | POST | Groq picks best reference index | Returns first reference ID |
-| `/api/transcribe` | POST (multipart) | Whisper-large-v3 transcription | `"[transcription bypassed …]"` |
+| `/api/chat` | POST | HF Llama streaming chat w/ OpenAlex tool | Mock stream, text explaining bypass |
+| `/api/onboarding` | POST (`step: 'questions' \| 'recommend'`) | HF Llama questions + OpenAlex papers + HF Llama RRW | Hard-coded fallback questions + OpenAlex only |
+| `/api/suggest-title` | POST | 3 HF Llama-generated titles | Templated titles from input |
+| `/api/find-reference` | POST | HF Llama picks best reference index | Returns first reference ID |
+| `/api/transcribe` | POST (multipart) | HF Whisper-large-v3 transcription | `"[transcription bypassed …]"` |
 
 ### Python backend (`api/`)
 | Endpoint | Purpose | Deps |
 |---|---|---|
 | `POST /analyze` | Excel → cleaning (IQR outliers) → stats test recommendation | pandas, scipy, pingouin |
-| `POST /analyze-literature` | PDFs + draft → gap analysis | PyMuPDF, groq-sdk |
+| `POST /analyze-literature` | PDFs + draft → gap analysis | PyMuPDF, stdlib (HF router via HTTPS) |
 
 ---
 
@@ -263,8 +264,8 @@ Every mutating action also fires `firestoreService.updateProject(...)` — curre
 - Zustand **5** (persist to localStorage) · React Hook Form + `@hookform/resolvers` · Zod
 
 **AI**
-- Vercel AI SDK **v6** (`ai`, `@ai-sdk/react`) · `@ai-sdk/groq` · `groq-sdk`
-- Groq `llama-3.3-70b-versatile` for text · `whisper-large-v3` for audio
+- Vercel AI SDK **v6** (`ai`, `@ai-sdk/react`) · `@ai-sdk/openai-compatible`
+- Hugging Face Inference Providers router — `meta-llama/Llama-3.3-70B-Instruct` for text, `openai/whisper-large-v3` for audio
 - OpenAlex REST (no key) for scholarly search
 
 **Editor & export**
@@ -281,7 +282,7 @@ Every mutating action also fires `firestoreService.updateProject(...)` — curre
 - `@vercel/analytics`
 
 **Python backend**
-- FastAPI · Uvicorn · scipy · pandas · numpy · pingouin · PyMuPDF · groq-sdk · python-dotenv
+- FastAPI · Uvicorn · scipy · pandas · numpy · pingouin · PyMuPDF · python-dotenv (HF called via stdlib urllib)
 
 ---
 
@@ -357,7 +358,7 @@ npm run lint    # ESLint
 ## Deployment
 
 Designed for Vercel (next.js). Expected env vars in Vercel project settings:
-- `GROQ_API_KEY`
+- `HF_API_TOKEN`
 - `NEXT_PUBLIC_FIREBASE_*` (only if you re-enable Firebase)
 
 The Python backend is **not** deployable as a Vercel Next route — host it separately (Fly, Railway, Render, or convert endpoints into Next route handlers if the stats stack can be rewritten in TS).
