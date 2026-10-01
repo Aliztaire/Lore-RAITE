@@ -157,7 +157,7 @@ export function ChecklistSidebar() {
       {/* Resize handle */}
       <div
         onMouseDown={startResize}
-        className="absolute left-0 top-0 h-full w-1 cursor-col-resize z-10 hover:bg-border transition-colors duration-150"
+        className="absolute left-0 top-0 h-full w-1 cursor-col-resize z-10 hover:bg-highlight transition-colors duration-150"
         title="Drag to resize"
       />
 
@@ -191,8 +191,8 @@ export function ChecklistSidebar() {
               onDragEnd={() => { setDraggedId(null); setDragOverId(null) }}
               onClick={() => handleSectionClick(section)}
               className={cn(
-                'relative w-full text-left pl-1 pr-2 py-1.5 rounded-md cursor-pointer flex items-center gap-1.5 group transition-colors duration-150',
-                isSelected ? 'bg-accent' : 'hover:bg-accent/60',
+                'relative w-full text-left pl-2 pr-3 py-2 rounded-full cursor-pointer flex items-center gap-2 group transition-colors duration-150',
+                isSelected ? 'bg-accent' : ' hover:text-highlight-strong',
                 isDragging && 'opacity-40',
                 isDragOver && 'shadow-[inset_0_2px_0_var(--primary)]'
               )}
@@ -207,7 +207,7 @@ export function ChecklistSidebar() {
                   'shrink-0 w-4 h-4 rounded-full border flex items-center justify-center transition-colors duration-150',
                   section.completed
                     ? 'bg-primary border-primary text-primary-foreground'
-                    : 'border-input bg-card hover:border-primary'
+                    : 'border-input bg-card'
                 )}
               >
                 {section.completed && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
@@ -225,11 +225,11 @@ export function ChecklistSidebar() {
                   }}
                   onBlur={commitEdit}
                   onClick={(e) => e.stopPropagation()}
-                  className="flex-1 min-w-0 ml-1 text-sm bg-card rounded-sm px-1.5 py-0.5 outline-none border border-ring"
+                  className="flex-1 min-w-0 ml-1 text-sm bg-card rounded-full px-3 py-1 outline-none border border-ring"
                 />
               ) : (
                 <span className={cn(
-                  'flex-1 min-w-0 ml-1 text-sm truncate',
+                  'flex-1 min-w-0 ml-1 text-sm truncate group-hover:text-highlight-strong transition-colors duration-150',
                   isSelected ? 'text-foreground font-medium' : 'text-foreground',
                   section.completed && 'text-muted-foreground'
                 )}>
@@ -239,10 +239,10 @@ export function ChecklistSidebar() {
               )}
 
               {!isEditing && (
-                <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
+                <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
                   <button
                     onClick={(e) => startEditing(e, section)}
-                    className="h-5 w-5 flex items-center justify-center rounded text-subtle-foreground hover:text-foreground"
+                    className="h-5 w-5 flex items-center justify-center rounded-full text-subtle-foreground hover:text-highlight-strong"
                     title="Rename"
                   >
                     <Pencil className="h-3 w-3" />
@@ -250,7 +250,7 @@ export function ChecklistSidebar() {
                   {allSections.length > 1 && (
                     <button
                       onClick={(e) => handleDelete(e, section)}
-                      className="h-5 w-5 flex items-center justify-center rounded text-subtle-foreground hover:text-destructive"
+                      className="h-5 w-5 flex items-center justify-center rounded-full text-subtle-foreground hover:text-destructive"
                       title="Delete"
                     >
                       <Trash2 className="h-3 w-3" />
@@ -263,7 +263,7 @@ export function ChecklistSidebar() {
         })}
 
         {addingSection && (
-          <div className="flex items-center gap-2 pl-6 pr-2 py-1.5">
+          <div className="flex items-center gap-2 pl-6 pr-2 py-2">
             <div className="shrink-0 w-4 h-4 rounded-full border border-dashed border-input" />
             <input
               ref={addInputRef}
@@ -275,11 +275,11 @@ export function ChecklistSidebar() {
               }}
               onBlur={commitAdd}
               placeholder="Section title"
-              className="flex-1 min-w-0 text-sm bg-card rounded-sm px-1.5 py-0.5 outline-none border border-ring placeholder:text-subtle-foreground"
+              className="flex-1 min-w-0 text-sm bg-card rounded-full px-3 py-1 outline-none border border-ring placeholder:text-subtle-foreground"
             />
             <button
               onMouseDown={(e) => { e.preventDefault(); setAddingSection(false); setNewSectionTitle('') }}
-              className="h-5 w-5 flex items-center justify-center rounded text-subtle-foreground hover:text-foreground"
+              className="h-5 w-5 flex items-center justify-center rounded-full text-subtle-foreground hover:text-highlight-strong"
               aria-label="Cancel"
             >
               <X className="h-3 w-3" />
@@ -291,7 +291,7 @@ export function ChecklistSidebar() {
       <div className="px-5 py-3 border-t border-border shrink-0 flex items-center justify-between">
         <button
           onClick={() => setAddingSection(true)}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors duration-150"
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-highlight-strong transition-colors duration-150"
         >
           <Plus className="h-3.5 w-3.5" />
           Add section
@@ -307,7 +307,7 @@ export function ChecklistSidebar() {
             <span className="text-xs text-muted-foreground tabular-nums">{bibRefs.length} source{bibRefs.length !== 1 ? 's' : ''}</span>
           </div>
           <div className="flex items-center gap-2 mt-3">
-            <div className="inline-flex rounded-md border border-border p-0.5" role="radiogroup" aria-label="Citation style">
+            <div className="inline-flex rounded-full border border-border p-1" role="radiogroup" aria-label="Citation style">
               {CITATION_STYLES.map(style => (
                 <button
                   key={style}
@@ -315,8 +315,8 @@ export function ChecklistSidebar() {
                   aria-checked={pendingStyle === style}
                   onClick={() => setPendingStyle(style)}
                   className={cn(
-                    'text-xs px-2 py-0.5 rounded-sm transition-colors duration-150',
-                    pendingStyle === style ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'
+                    'text-xs px-3 py-1 rounded-full transition-colors duration-150',
+                    pendingStyle === style ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground hover:text-highlight-strong'
                   )}
                 >
                   {style}
@@ -326,7 +326,7 @@ export function ChecklistSidebar() {
             {pendingStyle !== citationStyle && (
               <button
                 onClick={() => setCitationStyle(pendingStyle)}
-                className="text-xs text-primary hover:underline underline-offset-2"
+                className="text-xs text-primary hover:underline hover:text-highlight-strong underline-offset-2"
               >
                 Apply
               </button>
@@ -347,7 +347,7 @@ export function ChecklistSidebar() {
                   <p className="flex-1 text-foreground/90 pl-0">{ref.citation || ref.title}</p>
                   <button
                     onClick={() => removeFromBibliography(ref.id)}
-                    className="shrink-0 h-4 w-4 flex items-center justify-center rounded text-subtle-foreground hover:text-destructive opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-150"
+                    className="shrink-0 h-4 w-4 flex items-center justify-center rounded-full text-subtle-foreground hover:text-destructive opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-150"
                     title="Remove from bibliography"
                   >
                     <X className="h-3 w-3" />
@@ -361,7 +361,7 @@ export function ChecklistSidebar() {
         {bibRefs.length > 0 && (
           <div className="px-5 py-3 shrink-0 border-t border-border">
             <button
-              className="w-full h-8 rounded-md text-sm border border-input bg-card hover:bg-accent transition-colors duration-150 flex items-center justify-center gap-1.5"
+              className="w-full h-8 rounded-full text-sm border border-input bg-card transition-colors duration-150 flex items-center justify-center gap-2 hover:text-highlight-strong"
               onClick={copyBibliography}
             >
               {copied ? <><Check className="h-3.5 w-3.5 text-primary" /> Copied to clipboard</> : 'Copy bibliography'}

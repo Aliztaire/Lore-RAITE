@@ -13,14 +13,27 @@ import { useBuddyStore } from '@/lib/store'
 import type { CanvasNode, CanvasEdge } from '@/lib/types'
 
 // ─── Visual config ─────────────────────────────────────────────────────────
+// Line-art style: ink on paper. Meaning is carried by shape and dash pattern;
+// the hover colour (--highlight) is the only colour on the map.
 const NODE_R = { section: 13, concept: 8, evidence: 9 }
-const NODE_FILL = { section: '#1c1a17', concept: '#2f4a3a', evidence: '#8a6a1f' }
-const RESOLVED_FILL = '#7d9886'
+const INK = 'var(--foreground)'
+const PAPER = 'var(--card)'
+const HOVER = 'var(--highlight)'
+const NODE_FILL = { section: 'var(--node-section)', concept: 'var(--node-concept)', evidence: 'var(--node-evidence)' }
+/** Concept nodes are drawn as open circles (outline only). */
+const NODE_OPEN = { section: false, concept: true, evidence: false }
+const RESOLVED_FILL = 'var(--node-resolved)'
 const EDGE_COLORS: Record<string, string> = {
-  supports:    '#2f4a3a',
-  contradicts: '#8a2e2a',
-  references:  '#948d81',
-  elaborates:  '#c4bcae',
+  supports:    'var(--edge-supports)',
+  contradicts: 'var(--edge-contradicts)',
+  references:  'var(--edge-references)',
+  elaborates:  'var(--edge-elaborates)',
+}
+const EDGE_DASH: Record<string, string | undefined> = {
+  supports:    undefined,
+  contradicts: '6,4',
+  references:  '2,3',
+  elaborates:  undefined,
 }
 
 const EDGE_LABELS: CanvasEdge['label'][] = ['supports', 'contradicts', 'references', 'elaborates']
@@ -526,7 +539,7 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
               variant="outline"
               size="sm"
               aria-pressed={connectMode}
-              className={connectMode ? 'bg-accent border-primary text-primary hover:text-primary' : ''}
+              className={connectMode ? 'bg-accent border-primary text-primary hover:text-highlight-strong' : ''}
               onClick={() => { setConnectMode(m => !m); cancelConnect() }}
             >
               <Link2 />
@@ -567,7 +580,7 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
           onMouseUp={isMiniMap ? undefined : handleMouseUp}
           onMouseLeave={isMiniMap ? undefined : handleMouseUp}
           style={{
-            backgroundImage: isMiniMap ? undefined : `radial-gradient(circle, rgba(28,26,23,0.12) 1px, transparent 1px)`,
+            backgroundImage: isMiniMap ? undefined : `radial-gradient(circle, var(--canvas-grid) 1px, transparent 1px)`,
             backgroundSize:     `${20 * zoom}px ${20 * zoom}px`,
             backgroundPosition: `${pan.x}px ${pan.y}px`,
           }}
@@ -576,9 +589,12 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
             <defs>
               {Object.entries(EDGE_COLORS).map(([label, color]) => (
                 <marker key={label} id={`arrow-${label}`} markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-                  <polygon points="0 0, 8 3, 0 6" fill={color} opacity="0.9" />
+                  <polygon points="0 0, 8 3, 0 6" fill={color} />
                 </marker>
               ))}
+              <marker id="arrow-hover" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill={HOVER} />
+              </marker>
             </defs>
 
             <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
@@ -587,7 +603,7 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
                 <line
                   x1={sourceSimNode.x} y1={sourceSimNode.y}
                   x2={mousePos.x} y2={mousePos.y}
-                  stroke="#2f4a3a" strokeWidth={1.5 / zoom} strokeDasharray={`${6 / zoom},${4 / zoom}`}
+                  stroke={HOVER} strokeWidth={1.5 / zoom} strokeDasharray={`${6 / zoom},${4 / zoom}`}
                   opacity={0.7}
                 />
               )}
@@ -598,19 +614,21 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
                 const ss = simRef.current.get(edge.source)
                 const ts = simRef.current.get(edge.target)
                 if (!ss || !ts) return null
-                const color    = EDGE_COLORS[edge.label] ?? '#948d81'
+                const color    = EDGE_COLORS[edge.label] ?? EDGE_COLORS.references
                 const isActive = tooltipNodeId === edge.source || tooltipNodeId === edge.target
                 const dx = ts.x - ss.x, dy = ts.y - ss.y
                 const mx = (ss.x + ts.x) / 2 - dy * 0.15
                 const my = (ss.y + ts.y) / 2 + dx * 0.15
                 return (
-                  <g key={edge.id} opacity={isActive ? 1 : 0.55} style={{ transition: 'opacity 150ms' }}>
+                  <g key={edge.id} opacity={isActive || !tooltipNodeId ? 1 : 0.45} style={{ transition: 'opacity 150ms' }}>
                     <path
                       d={`M ${ss.x} ${ss.y} Q ${mx} ${my} ${ts.x} ${ts.y}`}
-                      fill="none" stroke={color}
-                      strokeWidth={isActive ? 2 : 1.5}
-                      strokeDasharray={edge.label === 'contradicts' ? '5,3' : undefined}
-                      markerEnd={`url(#arrow-${edge.label})`}
+                      fill="none"
+                      stroke={isActive && hoveredNode ? HOVER : color}
+                      strokeWidth={isActive ? 1.75 : 1.25}
+                      strokeDasharray={EDGE_DASH[edge.label]}
+                      markerEnd={`url(#arrow-${isActive && hoveredNode ? 'hover' : edge.label})`}
+                      style={{ transition: 'stroke 150ms' }}
                     />
                   </g>
                 )
@@ -627,6 +645,7 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
                 const isResolved = !!node.data?.resolved
                 const r          = isPara ? NODE_R.concept : NODE_R.section
                 const fill       = isResolved ? RESOLVED_FILL : NODE_FILL[node.type]
+                const isOpen     = !isResolved && (isPara || NODE_OPEN[node.type])
                 const isSelected = selectedNode === node.id
                 const isHovered  = hoveredNode  === node.id
                 const isSource   = connectSource === node.id
@@ -646,13 +665,13 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
                     >
                       <rect
                         x={s.x - cardW / 2} y={s.y - cardH / 2}
-                        width={cardW} height={cardH} rx={4}
-                        fill="#ffffff"
-                        stroke={isSource ? '#2f4a3a' : isSelected || isHovered ? fill : '#e4ded3'}
-                        strokeWidth={isSource || isSelected || isHovered ? 2 : 1}
+                        width={cardW} height={cardH} rx={6}
+                        fill={PAPER}
+                        stroke={isHovered || isSource ? HOVER : isSelected ? INK : 'var(--border)'}
+                        strokeWidth={isSource || isSelected || isHovered ? 1.75 : 1}
                       />
                       <clipPath id={`card-clip-${node.id}`}>
-                        <rect x={s.x - cardW / 2} y={s.y - cardH / 2} width={cardW} height={imgH} rx={4} />
+                        <rect x={s.x - cardW / 2} y={s.y - cardH / 2} width={cardW} height={imgH} rx={6} />
                       </clipPath>
                       <image
                         href={node.data!.imageUrl}
@@ -664,8 +683,8 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
                       />
                       <text
                         x={s.x} y={s.y - cardH / 2 + imgH + 12}
-                        fontSize={9} fontWeight="600" textAnchor="middle"
-                        fill={isResolved ? '#4b6b57' : '#1c1a17'}
+                        fontSize={12} fontWeight="500" textAnchor="middle"
+                        fill={isResolved ? 'var(--muted-foreground)' : INK}
                         style={{ userSelect: 'none' } as React.CSSProperties}
                       >
                         {node.label.length > 10 ? node.label.slice(0, 10) + '…' : node.label}
@@ -686,33 +705,34 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
                     onMouseEnter={() => setHoveredNode(node.id)}
                     onMouseLeave={() => setHoveredNode(null)}
                   >
-                    {(isHovered || isSelected || isSource) && (
-                      <circle cx={s.x} cy={s.y} r={r + 4} fill="none" stroke={isSource ? '#2f4a3a' : fill} strokeWidth={1} opacity={0.5} />
+                    {(isSelected || isSource) && (
+                      <circle cx={s.x} cy={s.y} r={r + 4} fill="none" stroke={isSource ? HOVER : INK} strokeWidth={1} strokeDasharray="2,2" />
                     )}
                     <circle
                       cx={s.x} cy={s.y} r={r}
-                      fill={fill}
-                      stroke="#ffffff"
-                      strokeWidth={isSelected || isSource ? 2 : 0}
+                      fill={isHovered ? HOVER : isOpen ? PAPER : fill}
+                      stroke={isHovered ? HOVER : isOpen ? fill : PAPER}
+                      strokeWidth={isOpen ? 1.75 : 1.5}
+                      style={{ transition: 'fill 150ms, stroke 150ms' }}
                     />
                     {/* Resolved checkmark badge */}
                     {isResolved && (
                       <>
-                        <circle cx={s.x + r} cy={s.y - r} r={5} fill="#ffffff" stroke={RESOLVED_FILL} strokeWidth={1} />
-                        <path d={`M ${s.x + r - 2.2} ${s.y - r} l 1.5 1.5 l 2.8 -3`} fill="none" stroke={RESOLVED_FILL} strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" />
+                        <circle cx={s.x + r} cy={s.y - r} r={5} fill={PAPER} stroke={INK} strokeWidth={1} />
+                        <path d={`M ${s.x + r - 2.2} ${s.y - r} l 1.5 1.5 l 2.8 -3`} fill="none" stroke={INK} strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" />
                       </>
                     )}
                     {/* Custom node dot */}
                     {isCustom && !isResolved && (
-                      <circle cx={s.x + r - 2} cy={s.y - r + 2} r={2.5} fill="#ffffff" stroke="#1c1a17" strokeWidth={1} />
+                      <circle cx={s.x + r - 2} cy={s.y - r + 2} r={2.5} fill={PAPER} stroke={INK} strokeWidth={1} />
                     )}
                     <text
                       x={s.x + r + 6} y={s.y + 4}
-                      fontSize={isPara ? 10 : 12}
-                      fontWeight={isPara ? '400' : '600'}
-                      fill={isPara ? '#6b655c' : '#1c1a17'}
+                      fontSize={isPara ? 12 : 14}
+                      fontWeight={isPara ? '400' : '500'}
+                      fill={isHovered ? 'var(--highlight-strong)' : isPara ? 'var(--muted-foreground)' : INK}
                       fontFamily={isPara ? undefined : 'var(--font-source-serif), Georgia, serif'}
-                      style={{ paintOrder: 'stroke', stroke: 'rgba(250,248,244,0.9)', strokeWidth: 3, userSelect: 'none' } as React.CSSProperties}
+                      style={{ paintOrder: 'stroke', stroke: 'var(--background)', strokeWidth: 3, userSelect: 'none' } as React.CSSProperties}
                     >
                       {node.label}
                     </text>
@@ -738,15 +758,15 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
               {EDGE_LABELS.map(label => (
                 <button
                   key={label}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent transition-colors duration-150 capitalize"
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors duration-150 capitalize hover:text-highlight-strong"
                   onClick={() => confirmEdge(label)}
                 >
-                  <div className="w-4 h-0.5 rounded" style={{ backgroundColor: EDGE_COLORS[label] }} />
+                  <svg width="16" height="6" aria-hidden><line x1="0" y1="3" x2="16" y2="3" stroke={EDGE_COLORS[label]} strokeWidth="1.5" strokeDasharray={EDGE_DASH[label]} /></svg>
                   {label}
                 </button>
               ))}
               <button
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-muted-foreground hover:bg-accent transition-colors duration-150 border-t border-border"
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-muted-foreground transition-colors duration-150 border-t border-border hover:text-highlight-strong"
                 onClick={() => setEdgePicker(null)}
               >
                 <X className="h-3 w-3" /> Cancel
@@ -776,18 +796,18 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
                     {tooltipContent || tooltipNodeData.label}
                   </p>
                   {connectedEdges.length > 0 && (
-                    <div className="border-t border-border pt-2 space-y-1.5">
+                    <div className="border-t border-border pt-2 space-y-2">
                       {connectedEdges.slice(0, 3).map(e => {
                         const otherId   = e.source === tooltipNodeData.id ? e.target : e.source
                         const otherNode = nodes.find(n => n.id === otherId)
                         return (
-                          <div key={e.id} className="flex items-start gap-1.5">
+                          <div key={e.id} className="flex items-start gap-2">
                             <div className="w-1.5 h-1.5 rounded-full mt-1 shrink-0" style={{ backgroundColor: EDGE_COLORS[e.label] }} />
                             <div>
-                              <p className="text-[10px] font-semibold text-foreground/70 leading-none mb-0.5">
+                              <p className="text-xs font-semibold text-foreground/70 leading-none mb-1">
                                 {otherNode?.location ?? otherNode?.label ?? 'Unknown'}
                               </p>
-                              <p className="text-[10px] text-muted-foreground leading-snug">{e.description}</p>
+                              <p className="text-xs text-muted-foreground leading-snug">{e.description}</p>
                             </div>
                           </div>
                         )
@@ -809,19 +829,29 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
 
           {/* Legend */}
           {!isMiniMap && (
-            <div className="absolute bottom-4 left-4 p-3 rounded-md border border-border bg-card">
+            <div className="absolute bottom-4 left-4 p-4 rounded-md border border-border bg-card">
               <p className="eyebrow mb-2">Connections</p>
               <div className="space-y-1">
                 {Object.entries(EDGE_COLORS).map(([label, color]) => (
                   <div key={label} className="flex items-center gap-2 text-xs">
-                    <div className="w-6 h-0.5 rounded" style={{ backgroundColor: color }} />
+                    <svg width="24" height="6" aria-hidden><line x1="0" y1="3" x2="24" y2="3" stroke={color} strokeWidth="1.5" strokeDasharray={EDGE_DASH[label]} /></svg>
                     <span className="capitalize text-muted-foreground">{label}</span>
                   </div>
                 ))}
-                <div className="flex items-center gap-2 text-xs mt-1">
-                  <div className="w-6 flex justify-center"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: RESOLVED_FILL }} /></div>
-                  <span className="text-muted-foreground">Resolved</span>
-                </div>
+              </div>
+              <p className="eyebrow mt-4 mb-2">Nodes</p>
+              <div className="space-y-1 text-xs text-muted-foreground">
+                {([
+                  ['Section', NODE_FILL.section, false],
+                  ['Paragraph / concept', NODE_FILL.concept, true],
+                  ['Evidence', NODE_FILL.evidence, false],
+                  ['Resolved', RESOLVED_FILL, false],
+                ] as const).map(([label, color, open]) => (
+                  <div key={label} className="flex items-center gap-2">
+                    <svg width="24" height="12" aria-hidden><circle cx="12" cy="6" r="4.5" fill={open ? PAPER : color} stroke={color} strokeWidth="1.5" /></svg>
+                    {label}
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -851,37 +881,37 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
             <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
               {/* Label */}
               <div>
-                <label htmlFor="node-label" className="eyebrow mb-1.5 block">Label</label>
+                <label htmlFor="node-label" className="eyebrow mb-2 block">Label</label>
                 <input
                   id="node-label"
                   value={panel.label}
                   onChange={e => setPanel(p => ({ ...p, label: e.target.value }))}
                   placeholder="Short title…"
-                  className="w-full px-3 py-2 text-sm rounded-md border border-input bg-card outline-none focus:border-ring focus:ring-2 focus:ring-ring/15 transition-colors"
+                  className="w-full px-4 py-2 text-sm rounded-full border border-input bg-card outline-none focus:border-ring focus:ring-2 focus:ring-ring/15 transition-colors"
                 />
               </div>
 
               {/* Content */}
               <div>
-                <label htmlFor="node-content" className="eyebrow mb-1.5 block">Content</label>
+                <label htmlFor="node-content" className="eyebrow mb-2 block">Content</label>
                 <textarea
                   id="node-content"
                   value={panel.content}
                   onChange={e => setPanel(p => ({ ...p, content: e.target.value }))}
                   placeholder="Describe this node…"
                   rows={5}
-                  className="w-full px-3 py-2 text-sm rounded-md border border-input bg-card outline-none focus:border-ring focus:ring-2 focus:ring-ring/15 transition-colors resize-none"
+                  className="w-full px-5 py-4 text-sm rounded-[2rem] border border-input bg-card outline-none focus:border-ring focus:ring-2 focus:ring-ring/15 transition-colors resize-none"
                 />
               </div>
 
               {/* Resolved toggle — concept & evidence only */}
               {(panel.type === 'concept' || panel.type === 'evidence') && (
                 <div>
-                  <span className="eyebrow mb-1.5 block">Status</span>
+                  <span className="eyebrow mb-2 block">Status</span>
                   <button
                     onClick={() => setPanel(p => ({ ...p, resolved: !p.resolved }))}
                     aria-pressed={panel.resolved}
-                    className={`flex items-center gap-2 w-full px-3 py-2 rounded-md border text-sm transition-colors duration-150 ${panel.resolved ? 'border-primary/40 bg-primary-soft text-primary' : 'border-input bg-card text-foreground hover:bg-accent'}`}
+                    className={`flex items-center gap-2 w-full px-4 py-2 rounded-full border text-sm transition-colors duration-150 ${panel.resolved ? 'border-primary/40 bg-primary-soft text-primary' : 'border-input bg-card text-foreground'} hover:text-highlight-strong`}
                   >
                     <CheckCircle2 className="h-4 w-4" />
                     {panel.resolved ? 'Resolved' : 'Mark as resolved'}
@@ -891,7 +921,7 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
 
               {/* Image upload */}
               <div>
-                <span className="eyebrow mb-1.5 block">Image</span>
+                <span className="eyebrow mb-2 block">Image</span>
                 <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                 {panel.imageUrl ? (
                   <div className="relative rounded-md overflow-hidden border border-border">
@@ -907,7 +937,7 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
                 ) : (
                   <button
                     onClick={() => imageInputRef.current?.click()}
-                    className="w-full border border-dashed border-input rounded-md py-6 flex flex-col items-center gap-1.5 text-muted-foreground hover:bg-accent/60 transition-colors duration-150"
+                    className="w-full border border-dashed border-input rounded-md py-6 flex flex-col items-center gap-2 text-muted-foreground transition-colors duration-150 hover:text-highlight-strong"
                   >
                     <ImageIcon className="h-5 w-5 text-subtle-foreground" />
                     <span className="text-xs">Upload an image</span>
@@ -919,7 +949,7 @@ export function NodeCanvas({ onNodeDoubleClick, isMiniMap = false }: NodeCanvasP
               {panel.mode === 'edit' && panel.id && (panel.type === 'concept' || panel.type === 'evidence') && (
                 <button
                   onClick={() => { toggleResolved(panel.id!); setPanel(p => ({ ...p, open: false })) }}
-                  className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 text-center transition-colors"
+                  className="text-xs text-muted-foreground hover:text-highlight-strong underline underline-offset-2 text-center transition-colors"
                 >
                   {nodes.find(n => n.id === panel.id)?.data?.resolved
                     ? 'Mark as unresolved'

@@ -26,10 +26,12 @@ import {
   Heading2,
   Heading3,
   Minus,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import ReactMarkdown from "react-markdown";
+import { ChatMarkdown } from "./chat-message";
+import { AnimatePresence, motion } from "motion/react";
 import { useBuddyStore } from "@/lib/store";
 import type { ChatMessage, Reference } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -69,7 +71,7 @@ function ResizableImageComponent({ node, updateAttributes, selected }: NodeViewP
       <img
         src={src}
         alt={alt || ''}
-        style={{ width: '100%', borderRadius: 4, display: 'block', outline: selected ? '2px solid var(--primary)' : undefined }}
+        style={{ width: '100%', borderRadius: 6, display: 'block', outline: selected ? '2px solid var(--primary)' : undefined }}
       />
       <div
         ref={handleRef}
@@ -280,6 +282,78 @@ function formatCitation(ref: Reference, style: "APA" | "MLA" | "Chicago"): strin
   return ref.citation;
 }
 
+// ─── Section outlines: what a student can write in each section ─────────────────
+
+interface GuidePoint { title: string; hint: string }
+
+const SECTION_GUIDES: { match: RegExp; points: GuidePoint[] }[] = [
+  { match: /introduc/i, points: [
+    { title: 'Background and context', hint: 'Set the scene: what is already known about the topic and why it matters.' },
+    { title: 'Problem statement', hint: 'Name the specific issue or gap your study responds to.' },
+    { title: 'Purpose and research questions', hint: 'State what the study sets out to find, as research questions or hypotheses.' },
+    { title: 'Significance', hint: 'Who benefits from the answer, and how: theory, practice, or policy.' },
+    { title: 'Scope and key terms', hint: 'Set the boundaries of the study and define the terms readers need.' },
+  ] },
+  { match: /literature|related|review/i, points: [
+    { title: 'Theoretical framework', hint: 'The theory or model that frames your variables and expectations.' },
+    { title: 'Key themes in prior research', hint: 'Organise by theme rather than paper by paper; synthesise, don’t list.' },
+    { title: 'Agreements and debates', hint: 'Where studies converge, where they conflict, and why.' },
+    { title: 'Methods used so far', hint: 'Common designs, samples, and measures, and their limitations.' },
+    { title: 'The gap', hint: 'What remains unanswered, leading directly to your research question.' },
+  ] },
+  { match: /method/i, points: [
+    { title: 'Research design', hint: 'Experimental, correlational, qualitative, or mixed, and why it fits your question.' },
+    { title: 'Participants and sampling', hint: 'Who took part, how they were recruited, and how many.' },
+    { title: 'Instruments and measures', hint: 'Scales or tools used, with evidence of validity and reliability.' },
+    { title: 'Procedure', hint: 'Step by step, what participants experienced, in enough detail to replicate.' },
+    { title: 'Data analysis', hint: 'The tests or coding approach you used, matched to each research question.' },
+    { title: 'Ethical considerations', hint: 'Consent, confidentiality, and approval from the ethics board.' },
+  ] },
+  { match: /result|finding/i, points: [
+    { title: 'Sample description', hint: 'Final sample size, demographics, and response or completion rates.' },
+    { title: 'Descriptive statistics', hint: 'Means, standard deviations, and frequencies for the main variables.' },
+    { title: 'Findings by research question', hint: 'Report each test with its statistic, p-value, and effect size.' },
+    { title: 'Tables and figures', hint: 'Summarise key results visually and refer to each one in the text.' },
+    { title: 'Report, don’t interpret', hint: 'Save explanations of what the results mean for the Discussion.' },
+  ] },
+  { match: /discuss/i, points: [
+    { title: 'Summary of key findings', hint: 'Briefly answer each research question in plain language.' },
+    { title: 'Interpretation', hint: 'Explain the results and compare them with the literature you reviewed.' },
+    { title: 'Implications', hint: 'What the findings mean for theory, practice, or policy.' },
+    { title: 'Limitations', hint: 'Honest constraints of the design, sample, or measures, and their effect.' },
+    { title: 'Future research', hint: 'Specific next studies your findings point toward.' },
+  ] },
+  { match: /conclu|recommend|summary/i, points: [
+    { title: 'Restate the purpose', hint: 'Remind the reader what the study set out to do.' },
+    { title: 'Main answer', hint: 'The central conclusion your evidence supports.' },
+    { title: 'Recommendations', hint: 'Concrete actions for practitioners, institutions, or researchers.' },
+    { title: 'Closing statement', hint: 'End on why this work matters, without introducing new evidence.' },
+  ] },
+]
+
+function guideFor(section: { title: string; description?: string }): GuidePoint[] {
+  const found = SECTION_GUIDES.find(g => g.match.test(section.title))
+  if (found) return found.points
+  return [
+    { title: 'Main point', hint: section.description?.trim() || 'State the one idea this section exists to communicate.' },
+    { title: 'Evidence', hint: 'Support it with data, examples, or citations from your references.' },
+    { title: 'Analysis', hint: 'Explain what the evidence shows and how it advances your argument.' },
+    { title: 'Transition', hint: 'Link this section to the next one.' },
+  ]
+}
+
+// ─── Assistant prompts (shown as short labels on comments) ─────────────────────
+
+const AUDIT_PROMPT =
+  "Please audit my current section. Give me specific strengths, suggestions for improvement, and any missing evidence or counterarguments.";
+const FIND_REFS_PREFIX = "Find recent scholarly articles relevant to my section on";
+
+function promptLabel(text: string) {
+  if (text === AUDIT_PROMPT) return "Review this section";
+  if (text.startsWith(FIND_REFS_PREFIX)) return "Find references for this section";
+  return text;
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function WritingView() {
@@ -329,7 +403,7 @@ export function WritingView() {
     editorProps: {
       attributes: {
         // Typography lives in globals.css (.tiptap-editor .ProseMirror)
-        class: 'outline-none min-h-full max-w-[42rem] mx-auto px-10 py-12',
+        class: 'outline-none',
       },
       handleDOMEvents: {
         keydown: (_view, e) => {
@@ -355,7 +429,7 @@ export function WritingView() {
     },
     onUpdate: ({ editor }) => {
       if (!selectedSectionId) return;
-      const md = editor.storage.markdown.getMarkdown();
+      const md = (editor.storage as any).markdown.getMarkdown();
       updateSection(selectedSectionId, { content: md });
     },
     onSelectionUpdate: ({ editor }) => {
@@ -398,7 +472,7 @@ export function WritingView() {
     if (!editor) return;
     const md = currentSection?.content || '';
     // Only reset if the content actually differs to avoid cursor jumping
-    const current = editor.storage.markdown.getMarkdown();
+    const current = (editor.storage as any).markdown.getMarkdown();
     if (current !== md) {
       editor.commands.setContent(md);
     }
@@ -409,13 +483,15 @@ export function WritingView() {
   const [isRecording, setIsRecording] = useState(false);
   const [showReferenceForm, setShowReferenceForm] = useState(false);
   const [expandedRefId, setExpandedRefId] = useState<string | null>(null);
-  const [refsOpen, setRefsOpen] = useState(true);
+  const [refsOpen, setRefsOpen] = useState(false); // collapsed by default so the manuscript keeps its measure
   const [citationStyle, setCitationStyle] = useState<"APA" | "MLA" | "Chicago">("APA");
   const [pendingStyle, setPendingStyle] = useState<"APA" | "MLA" | "Chicago">("APA");
   const [refFilter, setRefFilter] = useState<'all' | string>('all');
-  const [chatHeight, setChatHeight] = useState(288);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-  const isResizingChat = useRef(false);
+  // Assistant answers float over the page as comments; dismissing only hides them
+  const [dismissedComments, setDismissedComments] = useState<Set<string>>(new Set());
+  const [commentsHidden, setCommentsHidden] = useState(false);
+  // Section outline widget open/closed per section (open by default; the user can collapse it)
+  const [guideOpen, setGuideOpen] = useState<Record<string, boolean>>({});
 
   const findMatchingReference = useCallback(async () => {
     const text = selectedTextRef.current;
@@ -467,30 +543,6 @@ export function WritingView() {
       setSelectionTooltip(null);
     }, 800);
   }, [editor, refMatchState.ref, citationStyle]);
-
-  const startChatResize = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    isResizingChat.current = true;
-    document.body.style.cursor = 'row-resize';
-    document.body.style.userSelect = 'none';
-    const onMouseMove = (ev: MouseEvent) => {
-      if (!isResizingChat.current) return;
-      const container = (e.target as HTMLElement).closest('.writing-col') as HTMLElement;
-      if (!container) return;
-      const rect = container.getBoundingClientRect();
-      const newHeight = rect.bottom - ev.clientY;
-      setChatHeight(Math.min(Math.max(newHeight, 160), 520));
-    };
-    const onMouseUp = () => {
-      isResizingChat.current = false;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    };
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-  }, []);
 
   const processedToolCallIds = useRef(new Set<string>());
 
@@ -575,12 +627,6 @@ export function WritingView() {
   useEffect(() => {
     processedToolCallIds.current = new Set();
   }, [selectedSectionId]);
-
-  // ── Auto-scroll chat ─────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
 
   // ── Extract references from AI SDK tool results ───────────────────────────────
 
@@ -677,14 +723,24 @@ export function WritingView() {
       sectionId: selectedSectionId,
     });
     setChatInput("");
+    setCommentsHidden(false);
     sendMessage({ text: input });
   };
 
   const handleAudit = () => {
     if (!selectedSectionId || !currentSection || isLoading) return;
-    sendMessage({
-      text: "Please audit my current section. Give me specific strengths, suggestions for improvement, and any missing evidence or counterarguments.",
-    });
+    setCommentsHidden(false);
+    sendMessage({ text: AUDIT_PROMPT });
+  };
+
+  const handleFindReferences = () => {
+    if (!selectedSectionId || !currentSection || isLoading) return;
+    setCommentsHidden(false);
+    sendMessage({ text: `${FIND_REFS_PREFIX} "${currentSection.title}"` });
+  };
+
+  const insertGuideHeading = (title: string) => {
+    editor?.chain().focus("end").insertContent(`<h2>${title}</h2><p></p>`).run();
   };
 
   const addReference = (ref: Partial<Reference>) => {
@@ -740,6 +796,21 @@ export function WritingView() {
     : (allSections.find(s => s.id === refFilter)?.references ?? []);
 
   const sectionWords = currentSection.content?.split(/\s+/).filter(Boolean).length || 0;
+
+  // Group the section's chat into comment threads: one question + the assistant's reply
+  const messageText = (m: any): string =>
+    (m.parts as any[] | undefined)?.filter(p => p.type === "text").map(p => p.text).join("") ?? m.content ?? "";
+  const threads: { id: string; question: string; replies: any[] }[] = [];
+  for (const m of messages as any[]) {
+    if (m.role === "user") threads.push({ id: m.id, question: messageText(m), replies: [] });
+    else if (threads.length > 0) threads[threads.length - 1].replies.push(m);
+    else threads.push({ id: m.id, question: "", replies: [m] });
+  }
+  const visibleThreads = threads.filter(t => !dismissedComments.has(t.id)).reverse(); // newest first
+  const latestThreadId = threads.at(-1)?.id;
+
+  const guidePoints = guideFor(currentSection);
+  const isGuideOpen = guideOpen[currentSection.id] ?? true; // open until the user collapses it
 
   const toolbarGroups = [
     [
@@ -803,7 +874,7 @@ export function WritingView() {
                 id="ref-filter"
                 value={refFilter}
                 onChange={e => setRefFilter(e.target.value)}
-                className="flex-1 min-w-0 h-8 text-xs rounded-md border border-input bg-card px-2 outline-none focus:border-ring"
+                className="flex-1 min-w-0 h-8 text-xs rounded-full border border-input bg-card px-3 outline-none focus:border-ring"
               >
                 <option value="all">All sections</option>
                 {allSections.map(sec => (
@@ -818,7 +889,7 @@ export function WritingView() {
         ) : (
           <button
             onClick={() => setRefsOpen(true)}
-            className="flex-1 flex flex-col items-center pt-5 gap-3 text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors duration-150"
+            className="flex-1 flex flex-col items-center pt-5 gap-3 text-muted-foreground hover:text-highlight-strong transition-colors duration-150"
             title="Open references"
           >
             <ChevronRight className="h-4 w-4" />
@@ -843,7 +914,7 @@ export function WritingView() {
                   return (
                     <li key={ref.id} className="text-xs">
                       <button
-                        className="w-full text-left px-4 pt-3 pb-1.5 flex items-start gap-2 hover:bg-accent/40 transition-colors duration-150"
+                        className="w-full text-left px-4 pt-3 pb-2 flex items-start gap-2 transition-colors duration-150"
                         onClick={() => setExpandedRefId(expanded ? null : ref.id)}
                         aria-expanded={expanded}
                       >
@@ -851,14 +922,14 @@ export function WritingView() {
                           <p className="font-medium leading-snug line-clamp-2 text-foreground">
                             {ref.title}
                           </p>
-                          <p className="mt-0.5 truncate text-muted-foreground">
+                          <p className="mt-1 truncate text-muted-foreground">
                             {ref.authors.length > 0
                               ? `${toAPA7Author(ref.authors[0])}${ref.authors.length > 1 ? " et al." : ""}`
                               : "Unknown author"}{" "}
                             ({ref.year})
                           </p>
                         </div>
-                        <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 mt-0.5 text-subtle-foreground transition-transform duration-150", expanded && "rotate-180")} />
+                        <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 mt-1 text-subtle-foreground transition-transform duration-150", expanded && "rotate-180")} />
                       </button>
 
                       {expanded && (
@@ -882,7 +953,7 @@ export function WritingView() {
                               href={ref.doi.startsWith("http") ? ref.doi : `https://doi.org/${ref.doi}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-primary hover:underline underline-offset-2"
+                              className="inline-flex items-center gap-1 text-primary hover:underline hover:text-highlight-strong underline-offset-2"
                             >
                               <ExternalLink className="h-3 w-3" />
                               View source
@@ -896,7 +967,7 @@ export function WritingView() {
                           onClick={() => inBib ? removeFromBibliography(ref.id) : addToBibliography(ref.id)}
                           className={cn(
                             "inline-flex items-center gap-1 text-xs transition-colors duration-150",
-                            inBib ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                            inBib ? "text-primary" : "text-muted-foreground hover:text-highlight-strong"
                           )}
                           title={inBib ? "Remove from bibliography" : "Add to bibliography"}
                         >
@@ -959,16 +1030,6 @@ export function WritingView() {
         {/* Section header */}
         <div className="h-14 border-b border-border bg-card flex items-center justify-between px-4 shrink-0 gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground"
-              onClick={() => setViewMode("dashboard")}
-            >
-              <ChevronLeft />
-              Overview
-            </Button>
-            <div className="h-5 w-px bg-border" />
             <div className="min-w-0">
               <h2 className="font-serif text-base font-semibold leading-tight truncate">{currentSection.title}</h2>
               {currentSection.description && (
@@ -982,10 +1043,10 @@ export function WritingView() {
         </div>
 
         {/* Formatting toolbar */}
-        <div className="shrink-0 border-b border-border bg-card flex items-center gap-0.5 px-3 py-1 flex-wrap" role="toolbar" aria-label="Formatting">
+        <div className="shrink-0 border-b border-border bg-card flex items-center gap-1 px-3 py-1 flex-wrap" role="toolbar" aria-label="Formatting">
           {toolbarGroups.map((group, gi) => (
-            <div key={gi} className="flex items-center gap-0.5">
-              {gi > 0 && <div className="w-px h-4 bg-border mx-1.5" />}
+            <div key={gi} className="flex items-center gap-1">
+              {gi > 0 && <div className="w-px h-4 bg-border mx-2" />}
               {group.map(({ icon, title, action, active }) => (
                 <button
                   key={title}
@@ -994,8 +1055,8 @@ export function WritingView() {
                   aria-pressed={!!active}
                   onClick={action}
                   className={cn(
-                    "p-1.5 rounded transition-colors duration-150",
-                    active ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+                    "p-2 rounded-full transition-colors duration-150",
+                    active ? "bg-accent text-foreground" : "text-muted-foreground hover:text-highlight-strong"
                   )}
                 >
                   {icon}
@@ -1005,12 +1066,13 @@ export function WritingView() {
           ))}
         </div>
 
-        {/* Rich-text editor */}
+        {/* Rich-text editor; the section outline and assistant comments float over it */}
+        <div className="flex-1 min-h-0 relative">
         <div
           ref={editorWrapRef}
-          className="flex-1 overflow-y-auto tiptap-editor relative bg-card"
+          className="h-full overflow-y-auto tiptap-editor relative bg-card flex flex-col"
         >
-          <EditorContent editor={editor} className="h-full" />
+          <EditorContent editor={editor} className="flex-1" />
 
           {/* ── Selection reference tooltip ── */}
           {selectionTooltip && (
@@ -1025,7 +1087,7 @@ export function WritingView() {
             >
               <div className="flex items-center justify-between px-3 py-2 border-b border-border">
                 <span className="eyebrow">Cite a source</span>
-                <button onClick={closeTooltip} className="text-subtle-foreground hover:text-foreground transition-colors" aria-label="Close">
+                <button onClick={closeTooltip} className="text-subtle-foreground hover:text-highlight-strong transition-colors" aria-label="Close">
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -1064,10 +1126,10 @@ export function WritingView() {
 
                 {refMatchState.ref && !refMatchState.inserted && (
                   <>
-                    <div className="rounded-sm bg-background border border-border p-2">
+                    <div className="pb-3 mb-1 border-b border-border">
                       <p className="eyebrow mb-1">Best match</p>
                       <p className="text-xs text-foreground leading-snug line-clamp-3">{refMatchState.ref.title}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                      <p className="text-xs text-muted-foreground mt-1">
                         {refMatchState.ref.authors?.[0] && `${refMatchState.ref.authors[0].trim().split(/\s+/).at(-1)} `}
                         {refMatchState.ref.year && `(${refMatchState.ref.year})`}
                       </p>
@@ -1084,7 +1146,7 @@ export function WritingView() {
                 )}
 
                 {refMatchState.inserted && (
-                  <p className="flex items-center justify-center gap-1.5 text-xs text-primary py-1">
+                  <p className="flex items-center justify-center gap-2 text-xs text-primary py-1">
                     <Check className="h-3.5 w-3.5" /> Citation inserted
                   </p>
                 )}
@@ -1110,129 +1172,205 @@ export function WritingView() {
           )}
         </div>
 
-        {/* ── AI Chat Panel ─────────────────────────────────────────────────── */}
-        <div className="border-t border-border flex flex-col shrink-0 bg-background" style={{ height: chatHeight }}>
-          <div
-            onMouseDown={startChatResize}
-            className="h-1.5 w-full cursor-row-resize hover:bg-border transition-colors duration-150 shrink-0"
-            title="Drag to resize"
-          />
-          <div className="px-4 pb-2 pt-1 flex items-center justify-between shrink-0">
-            <span className="eyebrow">Assistant</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleAudit}
-              disabled={isLoading}
-              className="h-7 text-xs"
+          {/* ── Floating right column (stays put while the page scrolls): outline, then comments ── */}
+          <div className="absolute top-4 right-4 bottom-4 z-30 w-80 flex flex-col items-end gap-3 pointer-events-none">
+
+            {/* Section outline widget — collapses to a small pill */}
+            <section
+              aria-label="Section outline"
+              className={cn(
+                "pointer-events-auto shrink-0 border border-border bg-popover shadow-popover transition-[border-radius] duration-200",
+                isGuideOpen ? "w-full rounded-2xl" : "rounded-full",
+              )}
             >
+              <button
+                onClick={() => setGuideOpen(prev => ({ ...prev, [currentSection.id]: !isGuideOpen }))}
+                aria-expanded={isGuideOpen}
+                className={cn("w-full flex items-center justify-between gap-3 text-left group", isGuideOpen ? "px-4 pt-4 pb-3" : "px-4 py-2")}
+              >
+                {isGuideOpen ? (
+                  <span className="min-w-0">
+                    <span className="eyebrow block">Section outline</span>
+                    <span className="block text-sm text-foreground mt-1 truncate group-hover:text-highlight-strong transition-colors duration-150">
+                      What to cover in {currentSection.title}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2 text-xs text-muted-foreground group-hover:text-highlight-strong transition-colors duration-150">
+                    <ListOrdered className="h-3.5 w-3.5" />
+                    Section outline
+                  </span>
+                )}
+                <ChevronDown className={cn("h-4 w-4 shrink-0 text-subtle-foreground transition-transform duration-200", isGuideOpen && "rotate-180")} />
+              </button>
+              <AnimatePresence initial={false}>
+                {isGuideOpen && (
+                  <motion.div
+                    key="guide"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto", transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }}
+                    exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}
+                    className="overflow-hidden"
+                  >
+                    <ol className="max-h-[45vh] overflow-y-auto px-4 pb-2">
+                      {guidePoints.map((point, i) => (
+                        <li key={point.title} className="flex items-start gap-3 py-3 border-t border-border group">
+                          <span className="w-5 pt-px text-xs text-subtle-foreground tabular-nums">{String(i + 1).padStart(2, "0")}</span>
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-sm font-medium text-foreground">{point.title}</span>
+                            <span className="block text-xs text-muted-foreground mt-1 leading-relaxed">{point.hint}</span>
+                            <button
+                              onClick={() => insertGuideHeading(point.title)}
+                              className="mt-1 text-xs text-subtle-foreground hover:text-highlight-strong transition-colors duration-150"
+                              title={`Add "${point.title}" as a heading in your text`}
+                            >
+                              + Add as heading
+                            </button>
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </section>
+
+            {/* Assistant comments */}
+            {threads.length > 0 && (
+              commentsHidden || visibleThreads.length === 0 ? (
+                visibleThreads.length > 0 && (
+                  <button
+                    onClick={() => setCommentsHidden(false)}
+                    className="pointer-events-auto shrink-0 flex items-center gap-2 rounded-full border border-border bg-popover px-4 py-2 text-xs text-muted-foreground shadow-popover hover:text-highlight-strong transition-colors duration-150"
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    Show {visibleThreads.length} comment{visibleThreads.length !== 1 ? "s" : ""}
+                  </button>
+                )
+              ) : (
+                <aside
+                  aria-label="Assistant comments"
+                  className="pointer-events-auto w-full min-h-0 overflow-y-auto flex flex-col gap-3 pb-1"
+                >
+                  <div className="flex items-center justify-between px-2">
+                    <span className="eyebrow">Assistant comments</span>
+                    <button
+                      onClick={() => setCommentsHidden(true)}
+                      className="text-xs text-muted-foreground hover:text-highlight-strong transition-colors duration-150"
+                    >
+                      Hide
+                    </button>
+                  </div>
+                <AnimatePresence initial={false}>
+                  {visibleThreads.map(thread => {
+                    const hasReply = thread.replies.some(r =>
+                      messageText(r).trim() || (r.parts as any[] | undefined)?.some(p => p.type === "tool-search_scholarly_articles"));
+                    const waiting = isLoading && thread.id === latestThreadId && !hasReply;
+                    return (
+                      <motion.article
+                        key={thread.id}
+                        layout
+                        initial={{ opacity: 0, y: -6, filter: "blur(3px)" }}
+                        animate={{ opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } }}
+                        exit={{ opacity: 0, transition: { duration: 0.15 } }}
+                        className="rounded-2xl border border-border bg-popover p-4 shadow-popover"
+                      >
+                        <div className="flex items-start gap-2">
+                          <p className="flex-1 text-xs text-muted-foreground italic line-clamp-2">
+                            {thread.question ? promptLabel(thread.question) : "Assistant"}
+                          </p>
+                          <button
+                            onClick={() => setDismissedComments(prev => new Set(prev).add(thread.id))}
+                            className="shrink-0 -mr-1 -mt-1 h-6 w-6 flex items-center justify-center rounded-full text-subtle-foreground hover:text-highlight-strong transition-colors duration-150"
+                            aria-label="Dismiss comment"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <div className="mt-2 max-h-80 overflow-y-auto text-sm text-foreground">
+                          {waiting ? (
+                            <p className="flex items-center gap-2 text-muted-foreground">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Thinking…
+                            </p>
+                          ) : !hasReply ? (
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                              No answer came back. The assistant needs an <span className="font-mono">HF_API_TOKEN</span> in <span className="font-mono">.env.local</span>; once it&rsquo;s set, ask again.
+                            </p>
+                          ) : (
+                            thread.replies.map((msg: any) =>
+                              (msg.parts as any[])?.map((part: any, i: number) => {
+                                if (part.type === "text") return <ChatMarkdown key={`${msg.id}-${i}`} text={part.text} />;
+                                if (part.type === "tool-search_scholarly_articles") {
+                                  const count = Array.isArray(part.output) ? part.output.length : 0;
+                                  return (
+                                    <p key={`${msg.id}-${i}`} className="flex items-center gap-2 text-xs my-2 text-muted-foreground">
+                                      <BookMarked className="h-3 w-3 shrink-0" />
+                                      {part.state === "output-available"
+                                        ? `Found ${count} reference${count !== 1 ? "s" : ""} on OpenAlex. Added to References.`
+                                        : "Searching OpenAlex…"}
+                                    </p>
+                                  );
+                                }
+                                return null;
+                              }) ?? <p key={msg.id} className="whitespace-pre-wrap">{msg.content}</p>
+                            )
+                          )}
+                        </div>
+                      </motion.article>
+                    );
+                  })}
+                </AnimatePresence>
+              </aside>
+              )
+            )}
+          </div>
+        </div>
+
+        {/* ── Ask the assistant (answers appear as comments on the page) ────── */}
+        <div className="px-4 py-3 border-t border-border shrink-0 bg-card">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSendMessage();
+            }}
+            className="flex items-center gap-2"
+          >
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn("shrink-0", isRecording ? "text-foreground bg-accent" : "text-muted-foreground")}
+              onClick={() => setIsRecording(!isRecording)}
+              aria-label={isRecording ? "Stop dictation" : "Start dictation"}
+              aria-pressed={isRecording}
+            >
+              {isRecording ? <MicOff /> : <Mic />}
+            </Button>
+            <Input
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="Ask a question or request a literature search…"
+              className="flex-1"
+              disabled={isLoading}
+            />
+            <Button
+              type="submit"
+              size="icon"
+              disabled={!chatInput.trim() || isLoading}
+              aria-label="Send"
+            >
+              {isLoading ? <Loader2 className="animate-spin" /> : <Send />}
+            </Button>
+          </form>
+          <div className="mt-2 ml-12 flex items-center gap-1">
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={handleAudit} disabled={isLoading}>
               <AlertTriangle className="h-3 w-3" />
               Review this section
             </Button>
-          </div>
-
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-4">
-            {messages.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-3">
-                Ask a question about this section, or{" "}
-                <button
-                  className="text-primary underline underline-offset-2"
-                  onClick={() =>
-                    sendMessage({
-                      text: `Find recent scholarly articles relevant to my section on "${currentSection.title}"`,
-                    })
-                  }
-                >
-                  find references
-                </button>{" "}
-                for it.
-              </p>
-            ) : (
-              messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={cn(
-                    "text-sm text-foreground",
-                    msg.role === "user"
-                      ? "max-w-[80%] ml-auto px-3.5 py-2.5 rounded-md bg-accent"
-                      : "max-w-[72ch]"
-                  )}
-                >
-                  {(msg.parts as any[])?.map((part: any, i: number) => {
-                    if (part.type === "text") {
-                      return (
-                        <div key={i} className="prose-chat">
-                          <ReactMarkdown>{part.text}</ReactMarkdown>
-                        </div>
-                      );
-                    }
-                    if (part.type === "tool-search_scholarly_articles") {
-                      const count = Array.isArray(part.output) ? part.output.length : 0;
-                      return (
-                        <p key={i} className="flex items-center gap-2 text-xs my-1.5 text-muted-foreground">
-                          <BookMarked className="h-3 w-3 shrink-0" />
-                          {part.state === "output-available"
-                            ? `Found ${count} reference${count !== 1 ? "s" : ""} on OpenAlex. Added to the references panel.`
-                            : "Searching OpenAlex…"}
-                        </p>
-                      );
-                    }
-                    return null;
-                  }) ?? (
-                    <p className="whitespace-pre-wrap leading-relaxed">
-                      {(msg as any).content}
-                    </p>
-                  )}
-                </div>
-              ))
-            )}
-
-            {isLoading && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                <span>Thinking…</span>
-              </div>
-            )}
-            <div ref={chatEndRef} />
-          </div>
-
-          {/* Chat input */}
-          <div className="px-4 py-3 border-t border-border shrink-0 bg-card">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSendMessage();
-              }}
-              className="flex items-center gap-2"
-            >
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className={cn("shrink-0", isRecording ? "text-destructive" : "text-muted-foreground")}
-                onClick={() => setIsRecording(!isRecording)}
-                aria-label={isRecording ? "Stop dictation" : "Start dictation"}
-                aria-pressed={isRecording}
-              >
-                {isRecording ? <MicOff /> : <Mic />}
-              </Button>
-              <Input
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Ask a question or request a literature search…"
-                className="flex-1"
-                disabled={isLoading}
-              />
-              <Button
-                type="submit"
-                size="icon"
-                disabled={!chatInput.trim() || isLoading}
-                aria-label="Send"
-              >
-                <Send />
-              </Button>
-            </form>
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={handleFindReferences} disabled={isLoading}>
+              <BookMarked className="h-3 w-3" />
+              Find references
+            </Button>
           </div>
         </div>
       </div>

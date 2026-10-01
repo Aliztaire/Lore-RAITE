@@ -1,12 +1,10 @@
-import { createGroq } from '@ai-sdk/groq'
+import { hfModel } from '@/lib/hf'
 import { generateText } from 'ai'
-
-const groq = createGroq({ apiKey: process.env.GROQ_API_KEY })
 
 export async function POST(req: Request) {
   const { topic, sectionTitles, currentTitle } = await req.json()
 
-  if (!process.env.GROQ_API_KEY) {
+  if (!process.env.HF_API_TOKEN) {
     const base = (currentTitle || topic || 'Untitled Study').trim()
     return Response.json({
       titles: [
@@ -18,7 +16,7 @@ export async function POST(req: Request) {
   }
 
   const { text } = await generateText({
-    model: groq('llama-3.3-70b-versatile'),
+    model: hfModel(),
     prompt: `You are helping a student finalize their research paper title.
 
 Current working title: "${currentTitle}"
@@ -31,7 +29,7 @@ Generate exactly 3 alternative academic paper titles. They should be:
 - Varied in style (one straightforward, one with a colon/subtitle, one more compelling)
 
 Reply with ONLY a JSON array of 3 strings, no other text. Example: ["Title One", "Title Two: A Subtitle", "Title Three"]`,
-    maxTokens: 200,
+    maxOutputTokens: 200,
   })
 
   try {

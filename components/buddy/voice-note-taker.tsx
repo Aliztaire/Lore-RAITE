@@ -13,7 +13,7 @@ const PRESET_TAGS = ['Idea', 'To-Do', 'Source']
 const tagClass = (active: boolean) =>
   active
     ? 'bg-primary-soft text-primary border-primary/40'
-    : 'bg-card text-muted-foreground border-border hover:text-foreground hover:border-input'
+    : 'bg-card text-muted-foreground border-border hover:text-highlight-strong'
 
 function TagSelector({
   value,
@@ -48,14 +48,14 @@ function TagSelector({
   const isCustomActive = value !== undefined && !PRESET_TAGS.includes(value)
 
   return (
-    <div className="flex flex-wrap gap-1.5 items-center">
+    <div className="flex flex-wrap gap-2 items-center">
       <span className="eyebrow mr-1">Tag</span>
       {PRESET_TAGS.map(tag => (
         <button
           key={tag}
           onClick={() => handlePreset(tag)}
           aria-pressed={value === tag}
-          className={cn('text-xs px-2.5 py-0.5 rounded-sm border transition-colors duration-150', tagClass(value === tag))}
+          className={cn('text-xs px-3 py-1 rounded-full border transition-colors duration-150', tagClass(value === tag))}
         >
           {tag}
         </button>
@@ -72,12 +72,12 @@ function TagSelector({
           }}
           onBlur={commitCustom}
           placeholder="Custom tag"
-          className="text-xs px-2 py-0.5 rounded-sm border border-ring bg-card outline-none w-24"
+          className="text-xs px-3 py-1 rounded-full border border-ring bg-card outline-none w-24"
         />
       ) : (
         <button
           onClick={isCustomActive ? () => onChange(undefined) : handleOtherClick}
-          className={cn('text-xs px-2.5 py-0.5 rounded-sm border transition-colors duration-150 flex items-center gap-1', tagClass(isCustomActive))}
+          className={cn('text-xs px-3 py-1 rounded-full border transition-colors duration-150 flex items-center gap-1', tagClass(isCustomActive))}
         >
           {isCustomActive ? <>{value} <X className="h-2.5 w-2.5" /></> : <><Plus className="h-2.5 w-2.5" /> Other</>}
         </button>
@@ -212,7 +212,7 @@ export function VoiceNoteTaker() {
             <Button
               size="icon-lg"
               variant="outline"
-              className="rounded-full h-12 w-12 border-destructive text-destructive hover:text-destructive"
+              className="rounded-full h-12 w-12 border-primary text-foreground hover:text-destructive"
               onClick={stopRecording}
               aria-label="Stop recording"
             >
@@ -221,7 +221,7 @@ export function VoiceNoteTaker() {
           )}
           <div className="text-sm">
             <p className="text-foreground flex items-center gap-2">
-              {isRecording && <span className="h-2 w-2 rounded-full bg-destructive" aria-hidden />}
+              {isRecording && <span className="h-2 w-2 rounded-full bg-foreground" aria-hidden />}
               {isRecording ? 'Recording' : isTranscribing ? 'Transcribing…' : 'Record a note'}
             </p>
             <p className="text-xs text-muted-foreground">
@@ -238,7 +238,7 @@ export function VoiceNoteTaker() {
         )}
 
         <textarea
-          className="w-full text-sm px-3 py-2.5 bg-card border border-input rounded-md min-h-[96px] resize-none outline-none focus:border-ring focus:ring-2 focus:ring-ring/15 transition-colors placeholder:text-subtle-foreground"
+          className="w-full text-sm px-5 py-4 bg-card border border-input rounded-[2rem] min-h-[96px] resize-none outline-none focus:border-ring focus:ring-2 focus:ring-ring/15 transition-colors placeholder:text-subtle-foreground"
           placeholder="Your transcript will appear here. You can also type."
           value={currentText}
           onChange={(e) => setCurrentText(e.target.value)}
@@ -278,18 +278,18 @@ export function VoiceNoteTaker() {
           </div>
 
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-subtle-foreground" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-subtle-foreground" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search notes"
               aria-label="Search notes"
-              className="h-8 pl-8 text-xs md:text-xs"
+              className="h-8 pl-10 text-xs md:text-xs"
             />
           </div>
 
           {filterTags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-2">
               {filterTags.map(tag => {
                 const isSelected = filterTag === tag
                 return (
@@ -297,7 +297,7 @@ export function VoiceNoteTaker() {
                     key={tag}
                     onClick={() => setFilterTag(isSelected ? undefined : tag)}
                     aria-pressed={isSelected}
-                    className={cn('text-xs px-2 py-0.5 rounded-sm border transition-colors duration-150', tagClass(isSelected))}
+                    className={cn('text-xs px-3 py-1 rounded-full border transition-colors duration-150', tagClass(isSelected))}
                   >
                     {tag}
                   </button>
@@ -316,11 +316,11 @@ export function VoiceNoteTaker() {
             ) : (
               <ul className="divide-y divide-border border-y border-border">
                 {filteredNotes.map(note => (
-                  <li key={note.id} className="py-3.5 group text-sm">
+                  <li key={note.id} className="py-4 group text-sm">
                     {editingNoteId === note.id ? (
                       <div className="flex flex-col gap-3">
                         <textarea
-                          className="w-full text-sm px-3 py-2 bg-card border border-input rounded-md min-h-[90px] resize-none outline-none focus:border-ring focus:ring-2 focus:ring-ring/15"
+                          className="w-full text-sm px-5 py-4 bg-card border border-input rounded-[2rem] min-h-[90px] resize-none outline-none focus:border-ring focus:ring-2 focus:ring-ring/15"
                           value={editContent}
                           onChange={(e) => setEditContent(e.target.value)}
                           autoFocus
@@ -348,24 +348,24 @@ export function VoiceNoteTaker() {
                         <div className="flex justify-between items-center mt-2">
                           <div className="flex items-center gap-2 text-xs text-subtle-foreground">
                             {note.tag && (
-                              <span className="px-1.5 py-px rounded-sm border border-border text-muted-foreground">{note.tag}</span>
+                              <span className="px-2 py-px rounded-full border border-border text-muted-foreground">{note.tag}</span>
                             )}
                             <span>
                               {new Date(note.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}, {new Date(note.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                             </span>
                           </div>
 
-                          <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
                             <button
                               onClick={() => { setEditingNoteId(note.id); setEditContent(note.content); setEditTag(note.tag) }}
-                              className="text-subtle-foreground hover:text-foreground p-1.5 rounded transition-colors"
+                              className="text-subtle-foreground hover:text-highlight-strong p-2 rounded-full transition-colors"
                               title="Edit note"
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </button>
                             <button
                               onClick={() => removeVoiceNote(note.id)}
-                              className="text-subtle-foreground hover:text-destructive p-1.5 rounded transition-colors"
+                              className="text-subtle-foreground hover:text-destructive p-2 rounded-full transition-colors"
                               title="Delete note"
                             >
                               <Trash2 className="h-3.5 w-3.5" />

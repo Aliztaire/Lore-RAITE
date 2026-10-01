@@ -4,68 +4,135 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Buddy — warm academic minimalism.
- * Paper ground, ink text, hairline rules, one restrained accent.
+ * Buddy — cream paper and ink line work.
+ * Everything at rest is monochrome: ink text, ink outlines, hairline rules on cream.
+ * Colour appears only on interaction: hovering a control lights it in a light sage green (--highlight).
  */
 :root {
-  --background: #faf8f4;          /* paper */
-  --foreground: #1c1a17;          /* ink */
-  --card: #ffffff;
-  --card-foreground: #1c1a17;
-  --popover: #ffffff;
-  --popover-foreground: #1c1a17;
+  --background: #faf5ec;          /* cream paper */
+  --foreground: #1e1b18;          /* ink */
+  --card: #fdf9f3;
+  --card-foreground: #1e1b18;
+  --popover: #fffcf7;
+  --popover-foreground: #1e1b18;
 
-  /* Deep academic green — primary actions, active nav, focus */
-  --primary: #2f4a3a;
-  --primary-foreground: #ffffff;
+  /* Primary = ink. Buttons are drawn as ink outlines, not filled blocks. */
+  --primary: #1e1b18;
+  --primary-foreground: #faf5ec;
+  --primary-soft: #ede5d8;        /* neutral "selected" surface */
 
-  /* Quiet surfaces (hover, selected rows, chips) */
-  --secondary: #f1ede5;
-  --secondary-foreground: #1c1a17;
-  --muted: #f1ede5;
-  --muted-foreground: #6b655c;
-  --subtle-foreground: #948d81;   /* tertiary text, meta */
-  --accent: #f1ede5;
-  --accent-foreground: #1c1a17;
+  /* Quiet neutral surfaces (selected rows, chips, active nav) */
+  --secondary: #f1eadf;
+  --secondary-foreground: #1e1b18;
+  --muted: #f1eadf;
+  --muted-foreground: #5f584f;
+  --subtle-foreground: #8e867a;   /* tertiary text, meta */
+  --accent: #efe7da;
+  --accent-foreground: #1e1b18;
 
-  --destructive: #8a2e2a;         /* oxblood */
+  /* Hover colour — the only hue in the interface */
+  --highlight: #a8d5b0;           /* light sage green */
+  --highlight-foreground: #1e1b18;
+  --highlight-soft: #e4f1e4;
+  --highlight-strong: #2f6b3f;    /* green text on cream (AA) */
+
+  --destructive: #9a3b2e;         /* errors and destructive hover only */
   --destructive-foreground: #ffffff;
-  --warning: #8a6a1f;             /* ochre */
-  --primary-soft: #e8eee9;        /* tinted surface for selected/positive */
+  --warning: #5f584f;             /* neutral by design: no colour at rest */
 
-  --border: #e4ded3;
-  --input: #d9d2c5;
-  --ring: #2f4a3a;
+  --border: #ddd4c6;
+  --input: #c9bfb0;
+  --ring: #1e1b18;
 
-  --chart-1: #2f4a3a;
-  --chart-2: #8a6a1f;
-  --chart-3: #6b655c;
-  --chart-4: #8a2e2a;
-  --chart-5: #b8b0a2;
+  --chart-1: #1e1b18;
+  --chart-2: #5f584f;
+  --chart-3: #8e867a;
+  --chart-4: #c9bfb0;
+  --chart-5: #a8d5b0;
 
   --radius: 0.375rem;
 
-  --sidebar: #ffffff;
-  --sidebar-foreground: #1c1a17;
-  --sidebar-primary: #2f4a3a;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f1ede5;
-  --sidebar-accent-foreground: #1c1a17;
-  --sidebar-border: #e4ded3;
-  --sidebar-ring: #2f4a3a;
+  --sidebar: #fdf9f3;
+  --sidebar-foreground: #1e1b18;
+  --sidebar-primary: #1e1b18;
+  --sidebar-primary-foreground: #faf5ec;
+  --sidebar-accent: #efe7da;
+  --sidebar-accent-foreground: #1e1b18;
+  --sidebar-border: #ddd4c6;
+  --sidebar-ring: #1e1b18;
 
-  /* Node canvas */
-  --node-section: #1c1a17;
-  --node-concept: #2f4a3a;
-  --node-evidence: #8a6a1f;
-  --edge-supports: #2f4a3a;
-  --edge-contradicts: #8a2e2a;
-  --edge-references: #948d81;
-  --edge-elaborates: #c4bcae;
-  --canvas-bg: #faf8f4;
-  --canvas-grid: #e4ded3;
+  /* Concept map: line art, shades of ink */
+  --node-section: #1e1b18;
+  --node-concept: #1e1b18;
+  --node-evidence: #8e867a;
+  --node-resolved: #c9bfb0;
+  --edge-supports: #1e1b18;
+  --edge-contradicts: #1e1b18;
+  --edge-references: #8e867a;
+  --edge-elaborates: #c9bfb0;
+  --canvas-grid: #ddd4c6;
 
-  --shadow-popover: 0 1px 2px rgba(28, 26, 23, 0.04), 0 8px 24px rgba(28, 26, 23, 0.08);
+  --shadow-popover: 0 1px 2px rgba(30, 27, 24, 0.04), 0 8px 24px rgba(30, 27, 24, 0.08);
+  --selection: #ebdfcc;
+}
+
+/* Dark: ink-coloured paper with chalk lines; same rules, green still only on hover. */
+.dark {
+  --background: #1a1714;
+  --foreground: #efe8dc;
+  --card: #211d19;
+  --card-foreground: #efe8dc;
+  --popover: #26221d;
+  --popover-foreground: #efe8dc;
+
+  --primary: #efe8dc;
+  --primary-foreground: #1a1714;
+  --primary-soft: #2e2923;
+
+  --secondary: #2e2923;
+  --secondary-foreground: #efe8dc;
+  --muted: #2e2923;
+  --muted-foreground: #b0a798;
+  --subtle-foreground: #847b6e;
+  --accent: #2e2923;
+  --accent-foreground: #efe8dc;
+
+  --highlight: #a8d5b0;
+  --highlight-foreground: #1a1714;
+  --highlight-soft: #24342a;
+  --highlight-strong: #b9e2c0;
+
+  --destructive: #e08676;
+  --destructive-foreground: #1a1714;
+  --warning: #b0a798;
+
+  --border: #3a342d;
+  --input: #4a433a;
+  --ring: #efe8dc;
+
+  --sidebar: #211d19;
+  --sidebar-foreground: #efe8dc;
+  --sidebar-primary: #efe8dc;
+  --sidebar-primary-foreground: #1a1714;
+  --sidebar-accent: #2e2923;
+  --sidebar-accent-foreground: #efe8dc;
+  --sidebar-border: #3a342d;
+  --sidebar-ring: #efe8dc;
+
+  --node-section: #efe8dc;
+  --node-concept: #efe8dc;
+  --node-evidence: #847b6e;
+  --node-resolved: #4a433a;
+  --edge-supports: #efe8dc;
+  --edge-contradicts: #efe8dc;
+  --edge-references: #847b6e;
+  --edge-elaborates: #4a433a;
+  --canvas-grid: #3a342d;
+
+  --shadow-popover: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --selection: #3d352b;
+
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -91,6 +158,10 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-warning: var(--warning);
+  --color-highlight: var(--highlight);
+  --color-highlight-foreground: var(--highlight-foreground);
+  --color-highlight-soft: var(--highlight-soft);
+  --color-highlight-strong: var(--highlight-strong);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -99,10 +170,31 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 2px);
+  /* One radius family: 6px for controls and surfaces, 8px for dialogs/popovers */
+  --radius-xs: var(--radius);
+  --radius-sm: var(--radius);
   --radius-md: var(--radius);
-  --radius-lg: calc(var(--radius) + 2px);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-lg: 8px;
+  --radius-xl: 8px;
+  --radius-2xl: 8px;
+
+  /* Type scale: 12 14 16 18 20 24 30 36 — body copy at 1.6 */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.5;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.6;
+  --text-base: 1rem;
+  --text-base--line-height: 1.6;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.5;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.4;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 1.3;
+  --text-3xl: 1.875rem;
+  --text-3xl--line-height: 1.25;
+  --text-4xl: 2.25rem;
+  --text-4xl--line-height: 1.2;
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -113,15 +205,6 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --shadow-popover: var(--shadow-popover);
 
-  --color-node-section: var(--node-section);
-  --color-node-concept: var(--node-concept);
-  --color-node-evidence: var(--node-evidence);
-  --color-edge-supports: var(--edge-supports);
-  --color-edge-contradicts: var(--edge-contradicts);
-  --color-edge-references: var(--edge-references);
-  --color-edge-elaborates: var(--edge-elaborates);
-  --color-canvas-bg: var(--canvas-bg);
-  --color-canvas-grid: var(--canvas-grid);
 }
 
 @layer base {
@@ -155,16 +238,19 @@
 
   body {
     @apply bg-background text-foreground;
+    font-size: 0.875rem;
+    line-height: 1.6;
     font-feature-settings: 'kern', 'liga', 'calt';
     text-rendering: optimizeLegibility;
   }
 
-  h1, h2, h3 {
+  h1, h2, h3, h4 {
     text-wrap: balance;
+    font-weight: 600;
   }
 
   ::selection {
-    background: #d6e0d8;
+    background: var(--selection);
     color: var(--foreground);
   }
 
@@ -176,7 +262,7 @@
 
 /* Small-caps style label used for section eyebrows and table headers */
 @utility eyebrow {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   line-height: 1rem;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -196,14 +282,18 @@
   }
 }
 
-/* ── TipTap editor (manuscript page) ────────────── */
+/* ── TipTap editor (manuscript page) ──────────────
+ * Serif at 17px; the text spans the full width of the writing area. */
 .tiptap-editor .ProseMirror {
   min-height: 100%;
   outline: none;
   @apply font-serif;
   font-size: 1.0625rem;
-  line-height: 1.75;
+  line-height: 1.7;
   color: var(--foreground);
+  box-sizing: border-box;
+  width: 100%;
+  padding: 3rem 3rem 4rem;
 }
 .tiptap-editor .ProseMirror > * + * {
   margin-top: 0.9em;
@@ -218,7 +308,7 @@
 }
 .tiptap-editor .ProseMirror h1 { font-size: 1.5rem; }
 .tiptap-editor .ProseMirror h2 { font-size: 1.25rem; }
-.tiptap-editor .ProseMirror h3 { font-size: 1.0625rem; }
+.tiptap-editor .ProseMirror h3 { font-size: 1.125rem; }
 .tiptap-editor .ProseMirror strong { font-weight: 600; }
 .tiptap-editor .ProseMirror em { font-style: italic; }
 .tiptap-editor .ProseMirror ul { list-style: disc; padding-left: 1.4em; }
@@ -263,7 +353,14 @@
 .prose-chat ul { list-style: disc; padding-left: 1.25em; }
 .prose-chat ol { list-style: decimal; padding-left: 1.25em; }
 .prose-chat li + li { margin-top: 0.3em; }
-.prose-chat a { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
+.prose-chat a { color: var(--foreground); text-decoration: underline; text-underline-offset: 2px; transition: color 150ms; }
+.prose-chat a:hover { color: var(--highlight-strong); }
+.prose-chat a.citation-link {
+  text-decoration-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  text-decoration-thickness: 1px;
+  overflow-wrap: anywhere;
+}
+.prose-chat a.citation-link:hover { color: var(--highlight-strong); text-decoration-color: currentColor; }
 .prose-chat hr { border: 0; border-top: 1px solid var(--border); margin: 1em 0; }
 .prose-chat blockquote {
   border-left: 2px solid var(--border);

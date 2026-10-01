@@ -62,13 +62,13 @@ export function IntegratedLiteratureAnalyzer({ onPreview }: { onPreview?: () => 
     formData.append("reference_dois", doisAndCitations);
 
     try {
-      const response = await fetch('http://localhost:8000/analyze-literature', { method: 'POST', body: formData });
+      const response = await fetch('/api/analyze-literature', { method: 'POST', body: formData });
       if (!response.ok) throw new Error(`Server error: ${response.status}`);
       const data = await response.json();
       if (data.error) throw new Error(data.error);
       setResult(data);
     } catch (err: any) {
-      setError(err.message || "Failed to analyze literature. Ensure your Python backend is running.");
+      setError(err.message || "Failed to analyze literature.");
     } finally {
       setLoading(false);
     }
@@ -90,8 +90,8 @@ export function IntegratedLiteratureAnalyzer({ onPreview }: { onPreview?: () => 
         <h3 className="font-serif text-lg font-semibold mb-3">{title}</h3>
         <ol className="border-y border-border divide-y divide-border">
           {items.map((item, i) => (
-            <li key={i} className="flex gap-4 py-3 text-[0.95rem] leading-relaxed">
-              {numbered && <span className="w-6 shrink-0 text-sm text-subtle-foreground tabular-nums pt-0.5">{String(i + 1).padStart(2, '0')}</span>}
+            <li key={i} className="flex gap-4 py-3 text-base leading-relaxed">
+              {numbered && <span className="w-6 shrink-0 text-sm text-subtle-foreground tabular-nums pt-1">{String(i + 1).padStart(2, '0')}</span>}
               <span className="flex-1">{item}</span>
             </li>
           ))}
@@ -100,13 +100,13 @@ export function IntegratedLiteratureAnalyzer({ onPreview }: { onPreview?: () => 
     ) : null;
 
   return (
-    <div className="flex-1 overflow-y-auto bg-background">
-      <div className="max-w-5xl mx-auto px-10 py-12">
+    <div className="flex-1 overflow-y-auto bg-background @container">
+      <div className="max-w-5xl mx-auto px-8 py-12">
 
         {/* Title */}
         <header className="pb-8 mb-8 border-b border-border">
           <p className="eyebrow mb-3">Research tools</p>
-          <h1 className="font-serif text-[2rem] leading-tight font-semibold">Literature gap analysis</h1>
+          <h1 className="font-serif text-3xl font-semibold">Literature gap analysis</h1>
           <p className="mt-2 text-muted-foreground max-w-2xl">
             Compares your draft against your bibliography to show which gaps the literature leaves open and how your paper addresses them.
           </p>
@@ -114,7 +114,7 @@ export function IntegratedLiteratureAnalyzer({ onPreview }: { onPreview?: () => 
 
         {error && (
           <div role="alert" className="mb-8 px-4 py-3 rounded-md text-sm flex items-start gap-3 border border-destructive/30 bg-destructive/5 text-destructive">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <AlertCircle className="w-4 h-4 shrink-0 mt-1" />
             <p>{error}</p>
           </div>
         )}
@@ -122,7 +122,7 @@ export function IntegratedLiteratureAnalyzer({ onPreview }: { onPreview?: () => 
         {/* Inputs */}
         {!result && (
           <>
-            <div className="grid md:grid-cols-2 gap-10">
+            <div className="grid @3xl:grid-cols-2 gap-10">
 
               {/* Draft */}
               <section>
@@ -162,13 +162,13 @@ export function IntegratedLiteratureAnalyzer({ onPreview }: { onPreview?: () => 
                 ) : (
                   <ol className="border-y border-border divide-y divide-border max-h-72 overflow-y-auto">
                     {bibRefs.map((ref, i) => (
-                      <li key={ref.id} className="flex items-start gap-3 py-2.5 text-sm">
-                        <span className="text-subtle-foreground tabular-nums shrink-0 text-xs pt-0.5">[{i + 1}]</span>
+                      <li key={ref.id} className="flex items-start gap-3 py-3 text-sm">
+                        <span className="text-subtle-foreground tabular-nums shrink-0 text-xs pt-1">[{i + 1}]</span>
                         <div className="min-w-0">
                           <p className="leading-snug">{ref.title}</p>
                           {ref.doi
-                            ? <p className="truncate text-xs text-subtle-foreground mt-0.5 font-mono">{ref.doi}</p>
-                            : <p className="text-xs text-subtle-foreground mt-0.5 italic">No DOI; citation text will be used</p>
+                            ? <p className="truncate text-xs text-subtle-foreground mt-1">{ref.doi}</p>
+                            : <p className="text-xs text-subtle-foreground mt-1 italic">No DOI; citation text will be used</p>
                           }
                         </div>
                       </li>
@@ -178,15 +178,15 @@ export function IntegratedLiteratureAnalyzer({ onPreview }: { onPreview?: () => 
 
                 {/* Extra PDFs */}
                 <div className="mt-5">
-                  <label className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground cursor-pointer transition-colors duration-150">
+                  <label className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-highlight-strong cursor-pointer transition-colors duration-150">
                     <UploadCloud className="w-4 h-4" />
                     Attach additional PDFs
                     <input type="file" multiple accept=".pdf,.txt" className="sr-only" onChange={handleRefsUpload} />
                   </label>
                   {refFiles.length > 0 && (
-                    <ul className="mt-3 space-y-1.5">
+                    <ul className="mt-3 space-y-2">
                       {refFiles.map((file, idx) => (
-                        <li key={idx} className="flex items-center justify-between px-3 py-1.5 rounded-md border border-border bg-card text-sm">
+                        <li key={idx} className="flex items-center justify-between px-3 py-2 rounded-md border border-border bg-card text-sm">
                           <span className="flex items-center gap-2 min-w-0">
                             <FileText className="w-3.5 h-3.5 shrink-0 text-subtle-foreground" />
                             <span className="truncate">{file.name}</span>
@@ -225,13 +225,13 @@ export function IntegratedLiteratureAnalyzer({ onPreview }: { onPreview?: () => 
               </Button>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-10">
+            <div className="grid @3xl:grid-cols-2 gap-10">
               <ResultList title="Gaps in the literature" items={result.established_gaps} />
               <ResultList title="How your draft addresses them" items={result.draft_evaluation?.gaps_filled} />
             </div>
 
             {result.draft_evaluation && (
-              <div className="grid md:grid-cols-2 gap-10">
+              <div className="grid @3xl:grid-cols-2 gap-10">
                 <ResultList title="Strengths" items={result.draft_evaluation.strengths} numbered={false} />
                 <ResultList title="Weaknesses" items={result.draft_evaluation.weaknesses} numbered={false} />
               </div>

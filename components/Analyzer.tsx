@@ -119,7 +119,7 @@ export function Analyzer() {
           return isNaN(p) ? null : p;
         });
       });
-      const res = await fetch('http://localhost:8000/analyze', {
+      const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ groups: payloadGroups, criteria_min: criteriaMin ? parseFloat(criteriaMin) : null, criteria_max: criteriaMax ? parseFloat(criteriaMax) : null, purpose }),
@@ -202,16 +202,16 @@ export function Analyzer() {
     },
   ];
 
-  const fieldClass = 'w-full px-3 py-2 rounded-md border border-input bg-card text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/15 transition-colors';
+  const fieldClass = 'w-full px-4 py-2 rounded-full border border-input bg-card text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/15 transition-colors';
 
   return (
-    <div className="flex-1 overflow-y-auto bg-background">
-      <div className="max-w-4xl mx-auto px-10 py-12">
+    <div className="flex-1 overflow-y-auto bg-background @container">
+      <div className="max-w-4xl mx-auto px-8 py-12">
 
         {/* Title */}
         <header className="pb-8 mb-8 border-b border-border">
           <p className="eyebrow mb-3">Research tools</p>
-          <h1 className="font-serif text-[2rem] leading-tight font-semibold">Statistical analysis</h1>
+          <h1 className="font-serif text-3xl font-semibold">Data analysis</h1>
           <p className="mt-2 text-muted-foreground">Enter your data, state your goal, and Buddy selects and runs an appropriate test.</p>
 
           <ol className="flex items-center gap-3 mt-8 text-sm" aria-label="Progress">
@@ -237,7 +237,7 @@ export function Analyzer() {
 
         {error && (
           <div role="alert" className="mb-8 px-4 py-3 rounded-md text-sm flex items-start gap-3 border border-destructive/30 bg-destructive/5 text-destructive">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <AlertCircle className="w-4 h-4 shrink-0 mt-1" />
             <p>{error}</p>
           </div>
         )}
@@ -250,7 +250,7 @@ export function Analyzer() {
             <section>
               <h2 className="font-serif text-lg font-semibold mb-1">Import a spreadsheet</h2>
               <p className="text-sm text-muted-foreground mb-4">Optional. Load an Excel or CSV file and map its columns to your variables.</p>
-              <label className="flex items-center justify-center gap-3 border border-dashed border-input rounded-md py-6 cursor-pointer bg-card hover:bg-accent/40 transition-colors duration-150">
+              <label className="flex items-center justify-center gap-3 border border-dashed border-input rounded-md py-6 cursor-pointer bg-card transition-colors duration-150 hover:text-highlight-strong">
                 <UploadCloud className="w-5 h-5 text-subtle-foreground" />
                 <span className="text-sm text-foreground">Choose a file</span>
                 <span className="text-xs text-subtle-foreground">.xlsx, .xls, .csv</span>
@@ -260,7 +260,7 @@ export function Analyzer() {
               {workbook && sheetNames.length > 0 && (
                 <div className="mt-6">
                   <p className="eyebrow mb-3">Map columns to variables</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-4">
                     {groups.map(group => {
                       const cols = sheetColsCache[group.sheet] || [];
                       return (
@@ -298,7 +298,7 @@ export function Analyzer() {
                   <Plus /> Add group
                 </Button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-4">
                 {groups.map(group => (
                   <div key={group.id} className="group/field rounded-md border border-border bg-card p-4">
                     <div className="flex items-center justify-between mb-2">
@@ -310,7 +310,7 @@ export function Analyzer() {
                         placeholder="Group name"
                       />
                       {groups.length > 2 && (
-                        <button onClick={() => removeGroup(group.id)} className="opacity-0 group-hover/field:opacity-100 focus:opacity-100 transition-opacity duration-150 p-1 rounded text-subtle-foreground hover:text-destructive" title="Remove group">
+                        <button onClick={() => removeGroup(group.id)} className="opacity-0 group-hover/field:opacity-100 focus:opacity-100 transition-opacity duration-150 p-1 rounded-full text-subtle-foreground hover:text-destructive" title="Remove group">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
@@ -318,7 +318,7 @@ export function Analyzer() {
                     <textarea
                       rows={3}
                       aria-label={`${group.name} values`}
-                      className={cn(fieldClass, 'text-xs font-mono leading-relaxed resize-none')}
+                      className={cn(fieldClass, 'rounded-[2rem] px-5 py-4 text-xs font-mono leading-relaxed resize-none')}
                       value={group.data}
                       onChange={e => updateGroup(group.id, 'data', e.target.value)}
                       placeholder="e.g. 1.2, 3.4, NaN, 5"
@@ -338,7 +338,7 @@ export function Analyzer() {
                   { label: 'Maximum', val: criteriaMax, set: setCriteriaMax },
                 ].map(({ label, val, set }) => (
                   <div key={label}>
-                    <label htmlFor={`crit-${label}`} className="eyebrow block mb-1.5">{label}</label>
+                    <label htmlFor={`crit-${label}`} className="eyebrow block mb-2">{label}</label>
                     <input id={`crit-${label}`} type="number" className={cn(fieldClass, 'font-mono')} value={val} onChange={e => set(e.target.value)} placeholder="None" />
                   </div>
                 ))}
@@ -364,10 +364,10 @@ export function Analyzer() {
                 const active = purpose === value;
                 return (
                   <label key={value} className={cn('flex items-start gap-4 px-2 py-4 transition-colors duration-150',
-                    disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-accent/40',
+                    disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:text-highlight-strong',
                     active && 'bg-primary-soft/60')}>
                     <input type="radio" name="purpose" value={value} className="sr-only peer" checked={active} disabled={disabled} onChange={e => setPurpose(e.target.value)} />
-                    <span className={cn('mt-0.5 h-4 w-4 rounded-full border flex items-center justify-center shrink-0 peer-focus-visible:ring-2 peer-focus-visible:ring-ring/40',
+                    <span className={cn('mt-1 h-4 w-4 rounded-full border flex items-center justify-center shrink-0 peer-focus-visible:ring-2 peer-focus-visible:ring-ring/40',
                       active ? 'border-primary' : 'border-input bg-card')}>
                       {active && <span className="h-2 w-2 rounded-full bg-primary" />}
                     </span>
@@ -376,7 +376,7 @@ export function Analyzer() {
                         <span className="text-subtle-foreground">{icon}</span>
                         {label}
                       </span>
-                      <span className="block text-sm text-muted-foreground mt-0.5">{desc}</span>
+                      <span className="block text-sm text-muted-foreground mt-1">{desc}</span>
                     </span>
                   </label>
                 );
@@ -402,7 +402,7 @@ export function Analyzer() {
               <p className="eyebrow mb-2">Recommended test</p>
               <div className="flex items-baseline gap-4 flex-wrap">
                 <h2 className="font-serif text-3xl font-semibold">{result.recommended_test}</h2>
-                <span className={cn('inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm border text-xs',
+                <span className={cn('inline-flex items-center gap-2 px-2 py-1 rounded-sm border text-xs',
                   result.significant ? 'border-primary/40 bg-primary-soft text-primary' : 'border-border text-muted-foreground')}>
                   {result.significant ? 'Significant at p < .05' : 'Not significant at p < .05'}
                 </span>
@@ -415,12 +415,12 @@ export function Analyzer() {
                 ].map(({ label, value }, i) => (
                   <div key={label} className={cn('py-5', i > 0 && 'pl-6 border-l border-border')}>
                     <dt className="eyebrow">{label}</dt>
-                    <dd className="mt-1.5 font-mono text-2xl text-foreground tabular-nums">{value}</dd>
+                    <dd className="mt-2 font-mono text-2xl text-foreground tabular-nums">{value}</dd>
                   </div>
                 ))}
               </dl>
 
-              <p className="mt-6 text-[0.95rem] leading-relaxed text-foreground max-w-prose border-l-2 border-border pl-4">
+              <p className="mt-6 text-base leading-relaxed text-foreground max-w-prose border-l-2 border-border pl-4">
                 <span className="font-medium">Interpretation. </span>
                 {result.significant
                   ? `The p-value (${result.p_value}) is below 0.05. We reject the null hypothesis: there is a statistically significant difference across the groups.`
@@ -437,7 +437,7 @@ export function Analyzer() {
                     <thead>
                       <tr className="border-b border-border">
                         {['Group A', 'Group B', 'p-value', 'Result'].map(h => (
-                          <th key={h} scope="col" className="px-3 py-2.5 text-left eyebrow">{h}</th>
+                          <th key={h} scope="col" className="px-3 py-3 text-left eyebrow">{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -446,10 +446,10 @@ export function Analyzer() {
                         const sig = ph.p_value < 0.05;
                         return (
                           <tr key={idx}>
-                            <td className="px-3 py-2.5">{ph.A}</td>
-                            <td className="px-3 py-2.5">{ph.B}</td>
-                            <td className="px-3 py-2.5 font-mono tabular-nums">{ph.p_value.toFixed(4)}</td>
-                            <td className={cn('px-3 py-2.5', sig ? 'text-primary' : 'text-muted-foreground')}>
+                            <td className="px-3 py-3">{ph.A}</td>
+                            <td className="px-3 py-3">{ph.B}</td>
+                            <td className="px-3 py-3 font-mono tabular-nums">{ph.p_value.toFixed(4)}</td>
+                            <td className={cn('px-3 py-3', sig ? 'text-primary' : 'text-muted-foreground')}>
                               {sig ? 'Significant' : 'Not significant'}
                             </td>
                           </tr>
@@ -468,19 +468,19 @@ export function Analyzer() {
                   <thead>
                     <tr className="border-b border-border">
                       {['Group', 'Initial', 'Missing', 'Excluded', 'Outliers', 'Final'].map((h, i) => (
-                        <th key={h} scope="col" className={cn('px-3 py-2.5 eyebrow', i === 0 ? 'text-left' : 'text-right')}>{h}</th>
+                        <th key={h} scope="col" className={cn('px-3 py-3 eyebrow', i === 0 ? 'text-left' : 'text-right')}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {Object.entries(result.cleaning_report).map(([gName, gRep]: [string, any]) => (
                       <tr key={gName}>
-                        <td className="px-3 py-2.5">{gName}</td>
-                        <td className="px-3 py-2.5 text-right font-mono tabular-nums">{gRep.initial_count}</td>
-                        <td className="px-3 py-2.5 text-right font-mono tabular-nums text-muted-foreground">−{gRep.missing_removed}</td>
-                        <td className="px-3 py-2.5 text-right font-mono tabular-nums text-muted-foreground">−{gRep.criteria_removed}</td>
-                        <td className="px-3 py-2.5 text-right font-mono tabular-nums text-muted-foreground">−{gRep.outliers_removed}</td>
-                        <td className="px-3 py-2.5 text-right font-mono tabular-nums font-medium">{gRep.final_count}</td>
+                        <td className="px-3 py-3">{gName}</td>
+                        <td className="px-3 py-3 text-right font-mono tabular-nums">{gRep.initial_count}</td>
+                        <td className="px-3 py-3 text-right font-mono tabular-nums text-muted-foreground">−{gRep.missing_removed}</td>
+                        <td className="px-3 py-3 text-right font-mono tabular-nums text-muted-foreground">−{gRep.criteria_removed}</td>
+                        <td className="px-3 py-3 text-right font-mono tabular-nums text-muted-foreground">−{gRep.outliers_removed}</td>
+                        <td className="px-3 py-3 text-right font-mono tabular-nums font-medium">{gRep.final_count}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -506,7 +506,7 @@ export function Analyzer() {
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-medium">Add to your paper</p>
-                    <p className="text-sm text-muted-foreground mt-0.5">Append these results to a section of your draft.</p>
+                    <p className="text-sm text-muted-foreground mt-1">Append these results to a section of your draft.</p>
                   </div>
                   <Button
                     variant="outline"
@@ -520,12 +520,12 @@ export function Analyzer() {
 
                 {showSectionPicker && (
                   <div className="mt-5 pt-5 border-t border-border">
-                    <div role="radiogroup" aria-label="Target section" className="space-y-0.5 mb-4 max-h-56 overflow-y-auto">
+                    <div role="radiogroup" aria-label="Target section" className="space-y-1 mb-4 max-h-56 overflow-y-auto">
                       {allSections.map(section => {
                         const on = selectedSectionId === section.id;
                         return (
                           <label key={section.id} className={cn('flex items-center gap-3 px-2 py-2 rounded-md cursor-pointer transition-colors duration-150',
-                            on ? 'bg-accent' : 'hover:bg-accent/50')}>
+                            on ? 'bg-accent' : ' hover:text-highlight-strong')}>
                             <input
                               type="radio"
                               name="target-section"

@@ -36,11 +36,11 @@ export function DocumentPreviewModal({ project, onClose, onExport }: DocumentPre
       role="dialog"
       aria-modal="true"
       aria-label={`Preview of ${project.title}`}
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#ebe6dc] animate-in fade-in-0 duration-150"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-muted animate-in fade-in-0 duration-150"
       onClick={e => { if (e.target === overlayRef.current) onClose() }}
     >
       {/* Toolbar */}
-      <div className="fixed top-0 left-0 right-0 z-10 h-14 flex items-center justify-between px-5 border-b border-border bg-card">
+      <div className="fixed top-0 left-0 right-0 z-10 h-14 flex items-center justify-between px-6 border-b border-border bg-card">
         <div className="flex items-baseline gap-3 min-w-0">
           <span className="eyebrow shrink-0">Preview</span>
           <span className="font-serif text-sm font-semibold truncate">{project.title}</span>
@@ -61,7 +61,7 @@ export function DocumentPreviewModal({ project, onClose, onExport }: DocumentPre
       {/* Page */}
       <div className="mt-24 mb-16 w-full max-w-[816px] mx-auto px-4">
         <div
-          className="border border-[#ddd6c9] shadow-[0_1px_3px_rgba(28,26,23,0.06)]"
+          className="border border-[#ddd6c9]"
           style={{
             background: '#fff',
             padding: '96px 96px 120px',

@@ -33,6 +33,7 @@ export const viewport: Viewport = {
 
 import { AuthProvider } from '@/components/auth-provider'
 import { ConfirmProvider } from '@/components/buddy/confirm-dialog'
+import { ThemeProvider } from '@/components/theme-provider'
 
 export default function RootLayout({
   children,
@@ -40,13 +41,15 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${sourceSerif.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
-        <AuthProvider>
-          <ConfirmProvider>
-            {children}
-          </ConfirmProvider>
-        </AuthProvider>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+          <AuthProvider>
+            <ConfirmProvider>
+              {children}
+            </ConfirmProvider>
+          </AuthProvider>
+        </ThemeProvider>
         <Analytics />
       </body>
     </html>

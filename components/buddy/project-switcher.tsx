@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { ChevronsUpDown, Trash2, Pencil, Check, X, Plus } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -66,7 +65,7 @@ export function ProjectSwitcher() {
 
   if (editingId) {
     return (
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 w-full">
         <input
           ref={inputRef}
           value={editingTitle}
@@ -75,18 +74,18 @@ export function ProjectSwitcher() {
             if (e.key === 'Enter') commitEdit()
             if (e.key === 'Escape') cancelEdit()
           }}
-          className="text-sm font-medium bg-card rounded-md px-2 py-1 outline-none border border-input focus:border-ring w-56"
+          className="text-sm font-medium bg-card rounded-full px-3 py-1 outline-none border border-input focus:border-ring flex-1 min-w-0"
         />
         <button
           onClick={commitEdit}
-          className="h-6 w-6 flex items-center justify-center rounded hover:bg-accent text-primary shrink-0"
+          className="h-6 w-6 flex items-center justify-center rounded-full text-primary shrink-0 hover:text-highlight-strong"
           title="Save"
         >
           <Check className="h-3.5 w-3.5" />
         </button>
         <button
           onClick={cancelEdit}
-          className="h-6 w-6 flex items-center justify-center rounded hover:bg-accent text-muted-foreground shrink-0"
+          className="h-6 w-6 flex items-center justify-center rounded-full text-muted-foreground shrink-0 hover:text-highlight-strong"
           title="Cancel"
         >
           <X className="h-3.5 w-3.5" />
@@ -98,15 +97,17 @@ export function ProjectSwitcher() {
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className="h-8 px-2 gap-1.5 text-foreground font-normal min-w-0"
+        <button
+          className="group w-full flex items-center gap-2 rounded-3xl border border-border bg-card px-4 py-2 text-left transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/30 hover:text-highlight-strong"
         >
-          <span className="truncate max-w-[260px]">
-            {currentProject?.title || 'Select a paper'}
+          <span className="flex-1 min-w-0">
+            <span className="eyebrow block">Paper</span>
+            <span className="block text-sm text-foreground truncate group-hover:text-highlight-strong transition-colors duration-150">
+              {currentProject?.title || 'Select a paper'}
+            </span>
           </span>
-          <ChevronsUpDown className="text-subtle-foreground" />
-        </Button>
+          <ChevronsUpDown className="h-4 w-4 shrink-0 text-subtle-foreground" />
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-80">
         {projects.length === 0 ? (
@@ -115,7 +116,7 @@ export function ProjectSwitcher() {
           </div>
         ) : (
           <div className="overflow-y-auto max-h-[528px]">
-            <p className="eyebrow px-2 pt-1.5 pb-1">Your papers</p>
+            <p className="eyebrow px-2 pt-2 pb-1">Your papers</p>
             {sortedProjects.map((project) => (
               <DropdownMenuItem
                 key={project.id}
@@ -128,16 +129,16 @@ export function ProjectSwitcher() {
                 >
                   <span className="truncate">{project.title}</span>
                 </div>
-                <div className="flex items-center gap-0.5 shrink-0 ml-1 opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity duration-150">
+                <div className="flex items-center gap-1 shrink-0 ml-1 opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity duration-150">
                   <button
-                    className="h-6 w-6 flex items-center justify-center rounded text-subtle-foreground hover:text-foreground"
+                    className="h-6 w-6 flex items-center justify-center rounded-full text-subtle-foreground hover:text-highlight-strong"
                     onClick={(e) => startEditing(e, project.id, project.title)}
                     title="Rename"
                   >
                     <Pencil className="h-3 w-3" />
                   </button>
                   <button
-                    className="h-6 w-6 flex items-center justify-center rounded text-subtle-foreground hover:text-destructive"
+                    className="h-6 w-6 flex items-center justify-center rounded-full text-subtle-foreground hover:text-destructive"
                     onClick={(e) => handleDeleteProject(e, project.id, project.title)}
                     title="Delete"
                   >
@@ -151,10 +152,10 @@ export function ProjectSwitcher() {
         {projects.length > 0 && <DropdownMenuSeparator />}
         <DropdownMenuItem
           onClick={() => { setShowOnboarding(true); setOpen(false) }}
-          className="flex items-center gap-2 cursor-pointer text-primary focus:text-primary"
+          className="flex items-center gap-2 cursor-pointer text-primary"
           onSelect={(e) => e.preventDefault()}
         >
-          <Plus className="h-4 w-4 text-primary" />
+          <Plus className="h-4 w-4 text-current" />
           <span>New paper</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
