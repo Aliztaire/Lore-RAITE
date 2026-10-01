@@ -150,8 +150,18 @@ export function VoiceNoteTaker() {
   const startRecording = async () => {
     try {
       setError(null)
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mediaRecorder = new MediaRecorder(stream)
+      // Browser-side noise/echo/gain cleanup before encoding — the cleaner the
+      // input signal, the fewer mishearings Whisper makes on the other end.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      })
+      // Explicit bitrate — some browsers (mobile Chrome especially) default
+      // to a lower bitrate than desktop, which loses detail Whisper needs.
+      const mediaRecorder = new MediaRecorder(stream, { audioBitsPerSecond: 128000 })
       mediaRecorderRef.current = mediaRecorder
       chunksRef.current = []
 
