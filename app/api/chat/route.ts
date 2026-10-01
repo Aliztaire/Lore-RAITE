@@ -37,7 +37,27 @@ COGNITIVE LOAD REDUCTION (FORMATTING RULES):
 
 Be academic, precise, and encouraging.`;
 
+function mockStreamResponse() {
+  const text =
+    "**NOTE:** AI backend bypassed (no GROQ_API_KEY set). Set GROQ_API_KEY in .env.local to enable real responses.\n\nThis is a mock reply so the UI remains functional.";
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      for (const chunk of text.match(/.{1,20}/gs) ?? [text]) {
+        controller.enqueue(encoder.encode(chunk));
+      }
+      controller.close();
+    },
+  });
+  return new Response(stream, {
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
+  });
+}
+
 export async function POST(req: Request) {
+  if (!process.env.GROQ_API_KEY) {
+    return mockStreamResponse();
+  }
   const {
     messages,
     context,

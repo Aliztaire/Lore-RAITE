@@ -10,6 +10,10 @@ export async function POST(req: Request) {
     return Response.json({ referenceId: null })
   }
 
+  if (!process.env.GROQ_API_KEY) {
+    return Response.json({ referenceId: references[0]?.id ?? null })
+  }
+
   // Use numbered list — LLMs are much more reliable with index numbers than opaque IDs
   const refList = references
     .map((r: { title: string; authors: string[]; year: string }, i: number) =>

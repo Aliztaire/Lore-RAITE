@@ -102,11 +102,26 @@ export async function POST(req: Request) {
     const { step, topic, answers } = body
 
     if (step === 'questions') {
+      if (!process.env.GROQ_API_KEY) {
+        return Response.json({
+          questions: [
+            { id: 'q1', question: 'What are your independent and dependent variables?', placeholder: 'e.g. screen time → sleep quality' },
+            { id: 'q2', question: 'Who is your target population?', placeholder: 'e.g. undergraduate students aged 18-22' },
+            { id: 'q3', question: 'What research design will you use?', placeholder: 'e.g. correlational, experimental, qualitative' },
+            { id: 'q4', question: 'What key constructs need defining?', placeholder: 'e.g. "well-being", "engagement"' },
+            { id: 'q5', question: 'What gap in the literature are you addressing?', placeholder: 'e.g. limited data on local Gen Z samples' },
+          ],
+        })
+      }
       const result = await generateQuestions(topic)
       return Response.json(result)
     }
 
     if (step === 'recommend') {
+      if (!process.env.GROQ_API_KEY) {
+        const papers = await fetchOpenAlexPapers(topic)
+        return Response.json({ rrl: papers, rrw: [] })
+      }
       const [papers, rrwResult] = await Promise.all([
         fetchOpenAlexPapers(topic),
         generateRRWs(topic, answers ?? {}),

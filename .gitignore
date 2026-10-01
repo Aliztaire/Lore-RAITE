@@ -15,3 +15,17 @@ next.user-config.*
 node_modules/
 .next/
 .DS_Store
+
+# Build artifacts
+tsconfig.tsbuildinfo
+
+# Agent / editor local state
+.claude/
+.vscode/
+.idea/
+
+# Python backend
+api/venv/
+api/.venv/
+**/__pycache__/
+*.pyc

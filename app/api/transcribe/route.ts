@@ -12,6 +12,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No audio file provided' }, { status: 400 });
     }
 
+    if (!process.env.GROQ_API_KEY) {
+      return NextResponse.json({ text: '[transcription bypassed — GROQ_API_KEY not set]' });
+    }
+
     const transcription = await groq.audio.transcriptions.create({
       file,
       model: 'whisper-large-v3',

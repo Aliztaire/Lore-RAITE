@@ -6,6 +6,17 @@ const groq = createGroq({ apiKey: process.env.GROQ_API_KEY })
 export async function POST(req: Request) {
   const { topic, sectionTitles, currentTitle } = await req.json()
 
+  if (!process.env.GROQ_API_KEY) {
+    const base = (currentTitle || topic || 'Untitled Study').trim()
+    return Response.json({
+      titles: [
+        `A Study on ${base}`,
+        `${base}: An Exploratory Analysis`,
+        `Rethinking ${base}: Insights and Implications`,
+      ],
+    })
+  }
+
   const { text } = await generateText({
     model: groq('llama-3.3-70b-versatile'),
     prompt: `You are helping a student finalize their research paper title.

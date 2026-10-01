@@ -1,55 +1,38 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
-import { auth } from '@/lib/firebase'
-import { onAuthStateChanged, User } from 'firebase/auth'
+import { createContext, useContext, useEffect } from 'react'
 import { useBuddyStore } from '@/lib/store'
-import { firestoreService } from '@/lib/firestore-service'
+
+type MockUser = {
+  uid: string
+  email: string
+  displayName: string
+  photoURL: string | null
+}
 
 interface AuthContextType {
-  user: User | null
+  user: MockUser | null
   loading: boolean
 }
 
-const AuthContext = createContext<AuthContextType>({ user: null, loading: true })
+const mockUser: MockUser = {
+  uid: 'local-dev-user',
+  email: 'dev@local',
+  displayName: 'Local Dev',
+  photoURL: null,
+}
+
+const AuthContext = createContext<AuthContextType>({ user: mockUser, loading: false })
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
-  const { setUserId, setProjects } = useBuddyStore()
+  const { setUserId } = useBuddyStore()
 
   useEffect(() => {
-    // Safety timeout — if Firebase never responds, unblock the UI after 5s
-    const timeout = setTimeout(() => setLoading(false), 5000)
-
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      clearTimeout(timeout)
-      setUser(user)
-      setUserId(user?.uid || null)
-
-      if (user) {
-        try {
-          const projects = await firestoreService.getProjects(user.uid)
-          setProjects(projects)
-        } catch (error) {
-          console.error("Error fetching projects:", error)
-          setProjects([])
-        }
-      } else {
-        setProjects([])
-      }
-
-      setLoading(false)
-    })
-
-    return () => {
-      clearTimeout(timeout)
-      unsubscribe()
-    }
-  }, [setUserId, setProjects])
+    setUserId(mockUser.uid)
+  }, [setUserId])
 
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user: mockUser, loading: false }}>
       {children}
     </AuthContext.Provider>
   )
