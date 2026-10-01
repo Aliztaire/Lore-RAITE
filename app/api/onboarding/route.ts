@@ -1,12 +1,10 @@
-import { createGroq } from '@ai-sdk/groq'
+import { hfModel } from '@/lib/hf'
 import { generateText } from 'ai'
-
-const groq = createGroq({ apiKey: process.env.GROQ_API_KEY })
 
 // ── Step 1: generate clarifying questions ─────────────────────────────────────
 async function generateQuestions(topic: string) {
   const { text } = await generateText({
-    model: groq('llama-3.3-70b-versatile'),
+    model: hfModel(),
     prompt: `You are a research advisor helping a student define their psychology/social science research study.
 
 The student's research topic is: "${topic}"
@@ -70,7 +68,7 @@ async function fetchOpenAlexPapers(query: string) {
 async function generateRRWs(topic: string, answers: Record<string, string>) {
   const answerStr = Object.values(answers).filter(Boolean).join('; ')
   const { text } = await generateText({
-    model: groq('llama-3.3-70b-versatile'),
+    model: hfModel(),
     prompt: `A student is researching: "${topic}"
 Their clarifying answers: ${answerStr || '(none provided)'}
 
@@ -102,7 +100,7 @@ export async function POST(req: Request) {
     const { step, topic, answers } = body
 
     if (step === 'questions') {
-      if (!process.env.GROQ_API_KEY) {
+      if (!process.env.HF_API_TOKEN) {
         return Response.json({
           questions: [
             { id: 'q1', question: 'What are your independent and dependent variables?', placeholder: 'e.g. screen time → sleep quality' },
@@ -118,7 +116,7 @@ export async function POST(req: Request) {
     }
 
     if (step === 'recommend') {
-      if (!process.env.GROQ_API_KEY) {
+      if (!process.env.HF_API_TOKEN) {
         const papers = await fetchOpenAlexPapers(topic)
         return Response.json({ rrl: papers, rrw: [] })
       }

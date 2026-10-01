@@ -1,7 +1,5 @@
-import { createGroq } from '@ai-sdk/groq'
+import { hfModel } from '@/lib/hf'
 import { generateText } from 'ai'
-
-const groq = createGroq({ apiKey: process.env.GROQ_API_KEY })
 
 export async function POST(req: Request) {
   const { selectedText, references } = await req.json()
@@ -10,7 +8,7 @@ export async function POST(req: Request) {
     return Response.json({ referenceId: null })
   }
 
-  if (!process.env.GROQ_API_KEY) {
+  if (!process.env.HF_API_TOKEN) {
     return Response.json({ referenceId: references[0]?.id ?? null })
   }
 
@@ -22,7 +20,7 @@ export async function POST(req: Request) {
     .join('\n')
 
   const { text } = await generateText({
-    model: groq('llama-3.3-70b-versatile'),
+    model: hfModel(),
     prompt: `A student highlighted this sentence in their research paper:
 "${selectedText}"
 
@@ -31,7 +29,7 @@ ${refList}
 
 Which reference number best supports or relates to the highlighted sentence?
 Reply with ONLY the number (e.g. 0, 1, 2...). If none are relevant, reply with -1.`,
-    maxTokens: 10,
+    maxOutputTokens: 10,
   })
 
   // Extract first integer from the response

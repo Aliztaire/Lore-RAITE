@@ -17,13 +17,12 @@ from dotenv import load_dotenv
 
 # Load env variables from Next.js .env.local
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env.local"))
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+HF_API_TOKEN = os.getenv("HF_API_TOKEN")
+HF_MODEL = "meta-llama/Llama-3.3-70B-Instruct"
+HF_ROUTER_URL = "https://router.huggingface.co/v1/chat/completions"
 
-try:
-    from groq import Groq
-    groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
-except ImportError:
-    groq_client = None
+import urllib.request as _urlreq
+import urllib.error as _urlerr
 
 app = FastAPI()
 
@@ -340,8 +339,8 @@ async def analyze_literature(request: Request):
     reference_dois = str(form_data.get("reference_dois", ""))
     references = form_data.getlist("references")
 
-    if not groq_client:
-        return {"error": "GROQ_API_KEY is missing or the Groq library failed to load in the backend."}
+    if not HF_API_TOKEN:
+        return {"error": "HF_API_TOKEN is missing in the backend environment."}
 
     refs_combined = ""
     count = 1
@@ -410,20 +409,43 @@ async def analyze_literature(request: Request):
         """
 
     try:
-        response = groq_client.chat.completions.create(
-            messages=[
+        payload = json.dumps({
+            "model": HF_MODEL,
+            "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": user_prompt},
             ],
-            model="llama-3.3-70b-versatile",
-            temperature=0.2,
-            response_format={"type": "json_object"}
-        )
+            "temperature": 0.2,
+            "max_tokens": 2048,
+            "response_format": {"type": "json_object"},
+        }).encode("utf-8")
 
-        result_content = response.choices[0].message.content
-        return json.loads(result_content)
+        req = _urlreq.Request(
+            HF_ROUTER_URL,
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {HF_API_TOKEN}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with _urlreq.urlopen(req, timeout=120) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+
+        result_content = data["choices"][0]["message"]["content"]
+
+        cleaned = result_content.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("```", 2)[1]
+            if cleaned.lower().startswith("json"):
+                cleaned = cleaned[4:]
+            cleaned = cleaned.strip().rstrip("`").strip()
+
+        return json.loads(cleaned)
+    except _urlerr.HTTPError as e:
+        return {"error": f"Hugging Face request failed ({e.code}): {e.read().decode('utf-8', errors='ignore')[:500]}"}
     except Exception as e:
-        return {"error": f"Groq AI Request Failed: {str(e)}"}
+        return {"error": f"Hugging Face request failed: {str(e)}"}
 
 
 if __name__ == "__main__":
