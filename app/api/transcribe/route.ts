@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 
-const HF_TRANSCRIBE_URL =
-  'https://router.huggingface.co/v1/audio/transcriptions';
+// HF's Inference Providers router doesn't expose an OpenAI-compatible
+// /v1/audio/transcriptions path — ASR goes through the provider-specific
+// task route instead, as a raw binary body (not multipart form data).
 const WHISPER_MODEL = 'openai/whisper-large-v3';
+const HF_TRANSCRIBE_URL = `https://router.huggingface.co/hf-inference/models/${WHISPER_MODEL}`;
 
 export async function POST(req: Request) {
   try {
@@ -17,17 +19,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ text: '[transcription bypassed — HF_API_TOKEN not set]' });
     }
 
-    const outgoing = new FormData();
-    outgoing.append('file', file, file.name || 'voice-note.webm');
-    outgoing.append('model', WHISPER_MODEL);
-    outgoing.append('response_format', 'json');
+    const audioBytes = await file.arrayBuffer();
 
     const res = await fetch(HF_TRANSCRIBE_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${process.env.HF_API_TOKEN}`,
+        'Content-Type': file.type || 'audio/webm',
       },
-      body: outgoing,
+      body: audioBytes,
     });
 
     if (!res.ok) {
