@@ -3,7 +3,7 @@
 ## Structure
 
 - `_lib/stats.py`, `_lib/literature.py` — the actual logic (cleaning, test selection, PDF
-  extraction, the Groq call). Both export `create_app()` returning a tiny FastAPI app.
+  extraction, the Hugging Face call). Both export `create_app()` returning a tiny FastAPI app.
 - `analyze.py`, `analyze-literature.py` — **production entrypoints**, one per file, each
   just calling `create_app()` from the matching `_lib` module. These are what Vercel
   deploys as separate Python Serverless Functions, bound 1:1 to `/api/analyze` and
@@ -32,16 +32,17 @@ directly, so this is the only place the port number is wired up.
 | Endpoint | Purpose |
 |---|---|
 | `POST /api/analyze` | Psych stats test selection (T-test, ANOVA, Kruskal, etc.) |
-| `POST /api/analyze-literature` | Literature gap analysis via Groq AI |
+| `POST /api/analyze-literature` | Literature gap analysis via the Hugging Face router |
 
 (Locally these are served at `/analyze` and `/analyze-literature` on `:8000` by `main.py`
 — the `/api` prefix is added by the Next.js rewrite, not by the backend itself.)
 
 ## Environment
 
-`GROQ_API_KEY` is read from the project root `.env.local` — no extra setup needed if you
-already have it there. (Swapping this provider off Groq is tracked separately; see the
-root `PLAN.md` 1.1 — this backend intentionally wasn't touched by that.)
+`HF_API_TOKEN` is read from the project root `.env.local` — no extra setup needed if you
+already have it there. Calls the Hugging Face router directly via stdlib `urllib`
+(`https://router.huggingface.co/v1/chat/completions`, `meta-llama/Llama-3.3-70B-Instruct`)
+— no SDK dependency.
 
 ## Production (Vercel)
 

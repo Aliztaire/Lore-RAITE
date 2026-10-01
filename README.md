@@ -31,7 +31,7 @@ Firebase Auth (Google + email/password) and Firestore (project persistence) are 
 
 ### What still runs with no AI credentials
 
-- **All 5 Groq API routes** (`chat`, `onboarding`, `suggest-title`, `find-reference`, `transcribe`) short-circuit to mock responses when `GROQ_API_KEY` is not set, so the UI stays functional for everything except real AI output.
+- **All 5 AI API routes** (`chat`, `onboarding`, `suggest-title`, `find-reference`, `transcribe`) short-circuit to mock responses when `HF_API_TOKEN` is not set. One Hugging Face token powers everything — text via the HF router (Llama 3.3 70B Instruct) and transcription via Whisper-large-v3.
 - **OpenAlex** calls still work (no key needed) — onboarding recommendations and chat tool-calling still return real papers.
 
 ### Known loose ends
@@ -56,7 +56,7 @@ npm install
 cp .env.example .env.local   # fill in NEXT_PUBLIC_FIREBASE_* — required, see below
 npm run dev                  # http://localhost:3000
 ```
-You need a real Firebase project to get past `/login` — see "Firebase setup" below. `GROQ_API_KEY` can stay blank (AI routes fall back to mock responses).
+You need a real Firebase project to get past `/login` — see "Firebase setup" below. `HF_API_TOKEN` can stay blank (AI routes fall back to mock responses).
 
 ### Firebase setup (required)
 1. Create a project at [console.firebase.google.com](https://console.firebase.google.com).
@@ -76,7 +76,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
-In dev, the frontend calls relative `/api/analyze` and `/api/analyze-literature` paths; `next.config.mjs` rewrites those to `http://localhost:8000` for you — no need to touch frontend code. In production (Vercel), those same paths are served directly by `api/analyze.py` / `api/analyze-literature.py` as Vercel Python Functions, no separate backend URL needed. Backend reads `GROQ_API_KEY` from the project-root `.env.local`.
+In dev, the frontend calls relative `/api/analyze` and `/api/analyze-literature` paths; `next.config.mjs` rewrites those to `http://localhost:8000` for you — no need to touch frontend code. In production (Vercel), those same paths are served directly by `api/analyze.py` / `api/analyze-literature.py` as Vercel Python Functions, no separate backend URL needed. Backend reads `HF_API_TOKEN` from the project-root `.env.local`.
 
 ### Build
 ```bash
@@ -105,7 +105,8 @@ npm start
 │    chat / onboarding / suggest-title /                        │
 │    find-reference / transcribe                                │
 │         │                                                     │
-│         ├─► Groq (llama-3.3-70b-versatile, whisper-v3)        │
+│         ├─► Hugging Face router (Llama-3.3-70B-Instruct)      │
+│         ├─► Hugging Face Whisper-large-v3 (transcribe)        │
 │         └─► OpenAlex REST (api.openalex.org/works)            │
 │                                                                │
 │  /api/analyze, /api/analyze-literature — relative fetch calls │
@@ -116,7 +117,7 @@ npm start
 │  Vercel Python Functions (api/analyze.py, api/analyze-        │
 │  literature.py — see api/_lib/ for shared logic)               │
 │    POST /api/analyze            — scipy/pingouin test picker  │
-│    POST /api/analyze-literature — Groq + PyMuPDF gap check    │
+│    POST /api/analyze-literature — HF Llama + PyMuPDF gap check│
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -172,7 +173,7 @@ Locally, `api/main.py` runs the same `_lib` logic behind one `uvicorn` server on
 │  ├─ analyze-literature.py ← Vercel entrypoint: POST /api/analyze-literature
 │  ├─ _lib/                 ← shared logic imported by both entrypoints + main.py
 │  │  ├─ stats.py           ← stats test picker (clean_group, analyze_data)
-│  │  └─ literature.py      ← lit-gap analyzer (PDF extract, Groq call)
+│  │  └─ literature.py      ← lit-gap analyzer (PDF extract, HF router call)
 │  ├─ main.py               ← local-dev only: mounts both under one uvicorn server
 │  ├─ requirements.txt
 │  └─ README.md
@@ -260,19 +261,19 @@ Every mutating action also fires `firestoreService.updateProject(...)`, which no
 ## API surface
 
 ### Next.js routes (`app/api/*`)
-| Route | Method | Behaviour (real) | Behaviour (no `GROQ_API_KEY`) |
+| Route | Method | Behaviour (real) | Behaviour (no `HF_API_TOKEN`) |
 |---|---|---|---|
-| `/api/chat` | POST | Groq streaming chat w/ OpenAlex tool | Mock stream, text explaining bypass |
-| `/api/onboarding` | POST (`step: 'questions' \| 'recommend'`) | Groq questions + OpenAlex papers + Groq RRW | Hard-coded fallback questions + OpenAlex only |
-| `/api/suggest-title` | POST | 3 Groq-generated titles | Templated titles from input |
-| `/api/find-reference` | POST | Groq picks best reference index | Returns first reference ID |
-| `/api/transcribe` | POST (multipart) | Whisper-large-v3 transcription | `"[transcription bypassed …]"` |
+| `/api/chat` | POST | HF Llama streaming chat w/ OpenAlex tool | Mock stream, text explaining bypass |
+| `/api/onboarding` | POST (`step: 'questions' \| 'recommend'`) | HF Llama questions + OpenAlex papers + HF Llama RRW | Hard-coded fallback questions + OpenAlex only |
+| `/api/suggest-title` | POST | 3 HF Llama-generated titles | Templated titles from input |
+| `/api/find-reference` | POST | HF Llama picks best reference index | Returns first reference ID |
+| `/api/transcribe` | POST (multipart) | HF Whisper-large-v3 transcription | `"[transcription bypassed …]"` |
 
 ### Python backend (`api/`)
 | Endpoint | Purpose | Deps | Hosting |
 |---|---|---|---|
 | `POST /api/analyze` | Excel → cleaning (IQR outliers) → stats test recommendation | pandas, scipy, pingouin | `api/analyze.py` (Vercel Python Function) |
-| `POST /api/analyze-literature` | PDFs + draft → gap analysis | PyMuPDF, groq-sdk | `api/analyze-literature.py` (Vercel Python Function) |
+| `POST /api/analyze-literature` | PDFs + draft → gap analysis | PyMuPDF, stdlib (HF router via HTTPS) | `api/analyze-literature.py` (Vercel Python Function) |
 
 Both call into shared logic in `api/_lib/` — see "Repository layout" above.
 
@@ -340,8 +341,8 @@ entirely instead of standing up a second one with its own auth/API wiring.
 - Zustand **5** (persist to localStorage) · React Hook Form + `@hookform/resolvers` · Zod
 
 **AI**
-- Vercel AI SDK **v6** (`ai`, `@ai-sdk/react`) · `@ai-sdk/groq` · `groq-sdk`
-- Groq `llama-3.3-70b-versatile` for text · `whisper-large-v3` for audio
+- Vercel AI SDK **v6** (`ai`, `@ai-sdk/react`) · `@ai-sdk/openai-compatible`
+- Hugging Face Inference Providers router — `meta-llama/Llama-3.3-70B-Instruct` for text, `openai/whisper-large-v3` for audio
 - OpenAlex REST (no key) for scholarly search
 
 **Editor & export**
@@ -362,7 +363,7 @@ entirely instead of standing up a second one with its own auth/API wiring.
 - Native Web Speech API (`window.speechSynthesis`) for read-aloud — no new dependency
 
 **Python backend**
-- FastAPI · Uvicorn · scipy · pandas · numpy · pingouin · PyMuPDF · groq-sdk · python-dotenv
+- FastAPI · Uvicorn · scipy · pandas · numpy · pingouin · PyMuPDF · python-dotenv (HF called via stdlib urllib)
 
 ---
 
@@ -379,7 +380,7 @@ If you are an AI agent (or a human) picking this up for the new hackathon, read 
 - **Zustand store is coupled to the `Project` schema** in `lib/types.ts`. Changing the domain model means touching ~15 call sites in `lib/store.ts`. Prefer a new store file over mutating the existing one if the new product has a different core entity.
 - **Every mutating action calls `firestoreService.*`, and it's live.** There's no debouncing — rapid edits (e.g. typing in the TipTap editor, if it's wired to `updateSection` per keystroke) will write to Firestore on every call. Add debouncing before that becomes a cost/quota problem.
 - **TipTap and canvas** carry significant surface area. If you don't need rich-text or node graphs, delete `writing-view.tsx` and `node-canvas.tsx` plus their deps (`@tiptap/*`, `tiptap-markdown`) — saves ~15 dependencies.
-- **Firebase/Groq/OpenAlex names leak into UI copy.** Grep before renaming the product; strings like "Buddy", "RRL", "RRW" appear across onboarding and dashboard.
+- **Firebase/Hugging Face/OpenAlex names leak into UI copy.** Grep before renaming the product; strings like "Buddy", "RRL", "RRW" appear across onboarding and dashboard.
 - **npm, not pnpm/yarn.** Lockfile is `package-lock.json`. Don't switch package managers mid-hackathon.
 
 ### Common first moves for a pivot
@@ -440,7 +441,7 @@ npm run lint    # ESLint
 Everything — Next.js app and Python backend — deploys as **one Vercel project**. `vercel link` then push; Vercel auto-detects the framework (Next.js) and separately picks up `api/analyze.py` / `api/analyze-literature.py` as Python Serverless Functions (detected via the presence of `api/requirements.txt`).
 
 Expected env vars in Vercel project settings:
-- `GROQ_API_KEY`
+- `HF_API_TOKEN`
 - `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID`, `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` — same values as `.env.local`
 
 Also add your production domain to Firebase **Authentication → Settings → Authorized domains**, or Google sign-in will be rejected there even though it works on `localhost`.

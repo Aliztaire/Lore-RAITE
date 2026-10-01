@@ -6,35 +6,34 @@ Plan to address the audit feedback. Ordered by priority: compliance risks first,
 
 ## Phase 1 — Compliance (eligibility risks, do first)
 
-### 1.1 Swap AI provider off Groq
+### 1.1 Swap AI provider off Groq — DONE (merged from origin/master)
 Groq is not on the allowed AI list. Replace everywhere.
 
-- [ ] Inventory every call site using Groq / Llama 3.3 via Groq
+- [x] Inventory every call site using Groq / Llama 3.3 via Groq
   - Next.js API routes (grep for `groq`, `GROQ_API_KEY`, `llama`)
   - Python backend `groq-sdk` call in literature gap analysis
-- [ ] Pick replacement provider: **Claude** (preferred — allowed, strong reasoning), Gemini, or OpenAI
-- [ ] Swap model string in each Vercel AI SDK call (one-line change per route)
-- [ ] Update `.env.example` and README env vars
-- [ ] Replace Whisper-via-Groq with **OpenAI Whisper API** (or HF Whisper) for voice notes
-- [ ] Replace Python backend Groq call with same provider SDK
-- [ ] Smoke-test each AI feature end-to-end with live keys
+- [x] Pick replacement provider: **Hugging Face** (single `HF_API_TOKEN` powers everything — text via the HF router with Llama-3.3-70B-Instruct, transcription via Whisper-large-v3)
+- [x] Swap model string in each Vercel AI SDK call (`lib/hf.ts` + `@ai-sdk/openai-compatible` pointed at the HF router)
+- [x] Update `.env.example` and README env vars
+- [x] Replace Whisper-via-Groq with HF's Whisper-large-v3 endpoint for voice notes
+- [x] Replace Python backend Groq call with HF router (stdlib `urllib`, no SDK needed)
+- [ ] Smoke-test each AI feature end-to-end with live keys — `HF_API_TOKEN` is set in `.env.local` but not yet exercised live through every route; do this next
 
-### 1.2 Fix hosting for FastAPI backend
+### 1.2 Fix hosting for FastAPI backend — DONE
 Allowed: Firebase, AWS, Azure, GCP, Vercel, Netlify. FastAPI currently has no home on that list.
 
-- [ ] Decide: **Google Cloud Run** (easiest), AWS, or port to Vercel Python functions
-- [ ] If Cloud Run: write Dockerfile, deploy, wire URL into Next.js env
-- [ ] If Vercel Python: confirm PDF + scipy/pingouin fit in function size limit
-- [ ] Document deployment steps in README
+- [x] Decide: **Vercel Python functions** (same project/domain as the Next.js app — no CORS, no second URL)
+- [x] Confirm PDF + scipy/pingouin fit in function size limit — trimmed unused `matplotlib`/`seaborn`/`scikit-learn`; real fit still needs a live Vercel deploy to fully confirm, Cloud Run is the documented fallback if it doesn't
+- [x] Document deployment steps in README
 
-### 1.3 Re-enable real persistence
+### 1.3 Re-enable real persistence — DONE
 Firebase is allowed but currently stubbed; everything is in localStorage.
 
-- [ ] Re-enable Firebase Auth (email + Google sign-in)
-- [ ] Re-enable Firestore for: projects, drafts, AI-use log, references, datasets metadata
-- [ ] Migrate localStorage reads/writes to Firestore (keep localStorage as offline cache if useful)
-- [ ] Add security rules (user can only read/write their own docs; adviser read-only on linked students)
-- [ ] Keep OpenAlex (open API, not AI — compliant)
+- [x] Re-enable Firebase Auth (email + Google sign-in)
+- [x] Re-enable Firestore for projects (drafts/references are nested fields on `Project`, persist for free; AI-use log and dataset metadata don't exist as features yet — deferred to whenever Phase 3.1 / stats work actually lands)
+- [x] Migrate localStorage reads/writes to Firestore (decided not to keep a localStorage offline cache on top — login-gated Firestore persistence is the compliance-critical part)
+- [x] Add security rules (user can only read/write their own docs); adviser read-only access is a `TODO(3.2)` in `firestore.rules`, waiting on the adviser-linking feature itself
+- [x] Keep OpenAlex (open API, not AI — compliant)
 
 ---
 
