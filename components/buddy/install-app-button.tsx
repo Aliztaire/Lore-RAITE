@@ -12,10 +12,28 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
+declare global {
+  interface Window {
+    __deferredInstallPrompt?: BeforeInstallPromptEvent
+  }
+}
+
 export function InstallAppButton() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
 
   useEffect(() => {
+    // The inline script in app/layout.tsx (strategy="beforeInteractive")
+    // listens for beforeinstallprompt before React even mounts, in case it
+    // fires during that window. Pick it up here if so.
+    if (window.__deferredInstallPrompt) {
+      setDeferredPrompt(window.__deferredInstallPrompt)
+    }
+    const onCaptured = () => {
+      if (window.__deferredInstallPrompt) setDeferredPrompt(window.__deferredInstallPrompt)
+    }
+    window.addEventListener('bip-captured', onCaptured)
+
+    // Fallback in case the early script's listener somehow missed it.
     const handler = (e: Event) => {
       e.preventDefault()
       setDeferredPrompt(e as BeforeInstallPromptEvent)
@@ -28,6 +46,7 @@ export function InstallAppButton() {
     // Android to discover that "New Voice Note" can be its own home-screen icon.
     const onInstalled = () => {
       setDeferredPrompt(null)
+      window.__deferredInstallPrompt = undefined
       toast('Buddy is installed!', {
         description: 'Tip: long-press the Buddy icon on your home screen and drag out "New Voice Note" to pin a dedicated quick-record icon.',
         duration: 10000,
@@ -35,6 +54,7 @@ export function InstallAppButton() {
     }
     window.addEventListener('appinstalled', onInstalled)
     return () => {
+      window.removeEventListener('bip-captured', onCaptured)
       window.removeEventListener('beforeinstallprompt', handler)
       window.removeEventListener('appinstalled', onInstalled)
     }
@@ -46,6 +66,7 @@ export function InstallAppButton() {
     await deferredPrompt.prompt()
     await deferredPrompt.userChoice
     setDeferredPrompt(null)
+    window.__deferredInstallPrompt = undefined
   }
 
   return (

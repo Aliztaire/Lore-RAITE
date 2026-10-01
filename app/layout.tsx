@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Urbanist } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import Script from 'next/script'
 import './globals.css'
 
 const _urbanist = Urbanist({
@@ -31,6 +32,17 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${_urbanist.variable} font-sans antialiased`}>
+        {/* beforeinstallprompt can fire before React hydrates; capture it
+            this early so install-app-button.tsx can never miss it. */}
+        <Script id="capture-install-prompt" strategy="beforeInteractive">
+          {`
+            window.addEventListener('beforeinstallprompt', function (e) {
+              e.preventDefault();
+              window.__deferredInstallPrompt = e;
+              window.dispatchEvent(new CustomEvent('bip-captured'));
+            });
+          `}
+        </Script>
         <AuthProvider>
           {children}
         </AuthProvider>
