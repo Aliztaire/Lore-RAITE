@@ -1,14 +1,12 @@
 # Lore-RAITE
 
-> Fork of **Buddy** (an AI research-writing assistant), being refactored into a new hackathon project.
->
-> This repo starts from Buddy's codebase and will be *extensively* modified. This README is the single source of truth for the current state — **read it fully before changing anything**, especially if you are an AI agent.
+> **Buddy** — an AI research-writing assistant for students writing empirical papers. This README is the single source of truth for the current state — **read it fully before changing anything**, especially if you are an AI agent.
 
 ---
 
-## What this project *was* (Buddy — origin)
+## What Buddy does
 
-Buddy was an AI research assistant for psychology / social-science students writing empirical papers (hypothesis + Review of Related Literature + stats). It wrapped the full workflow — topic framing → literature discovery → outlining → writing → statistical analysis → `.docx` export — in a single Next.js app with a Python/FastAPI companion backend for heavy work.
+Buddy is an AI research assistant for psychology / social-science students writing empirical papers (hypothesis + Review of Related Literature + stats). It wraps the full workflow — topic framing → literature discovery → outlining → writing → statistical analysis → `.docx` export — in a single Next.js app with a Python/FastAPI companion backend for heavy work.
 
 The product flow:
 1. **Onboarding** — enter a topic, AI asks 5 clarifying questions, system recommends seminal papers via OpenAlex.
@@ -18,8 +16,6 @@ The product flow:
 5. **Data Analysis** — upload Excel, get a recommended statistical test (t-test, ANOVA, Mann-Whitney, Kruskal-Wallis) with outlier cleaning.
 6. **Literature** — PDF upload + literature-gap analysis.
 7. **Export** — Word doc with APA 7 bibliography.
-
-This forms the *shell* you are inheriting. Which parts survive the hackathon pivot depends on the new direction — see **"Pivoting this codebase"** below.
 
 ---
 
@@ -377,61 +373,13 @@ entirely instead of standing up a second one with its own auth/API wiring.
 
 ---
 
-## Pivoting this codebase — guidance for agents
+## Notes for extending this codebase
 
-If you are an AI agent (or a human) picking this up for the new hackathon, read this before editing:
-
-### Safe starting points
-1. **The shell is reusable.** `app/page.tsx` + the viewMode pattern + the Zustand store + the Radix/shadcn UI kit give you a working app frame. Rip out the Buddy-specific feature components under `components/buddy/` and the API routes as needed, but keep the chassis.
-2. **AI plumbing is in place.** AI SDK v6 streaming is already wired up in `app/api/chat/route.ts` with tool-calling. Swap the system prompt, swap the tool, keep the structure.
-3. **The Python backend is a separate process** on `:8000`. If you don't need Python stats, delete the `api/` folder and the two components that call it (`Analyzer.tsx`, `components/buddy/integrated-literature-analyzer.tsx`).
-
-### Hazards
-- **Zustand store is coupled to the `Project` schema** in `lib/types.ts`. Changing the domain model means touching ~15 call sites in `lib/store.ts`. Prefer a new store file over mutating the existing one if the new product has a different core entity.
+- **Zustand store is coupled to the `Project` schema** in `lib/types.ts`. Changing the domain model means touching ~15 call sites in `lib/store.ts`. Prefer a new store file over mutating the existing one if a new feature needs a different core entity.
 - **Every mutating action calls `firestoreService.*`, and it's live.** There's no debouncing — rapid edits (e.g. typing in the TipTap editor, if it's wired to `updateSection` per keystroke) will write to Firestore on every call. Add debouncing before that becomes a cost/quota problem.
-- **TipTap and the canvas** carry significant surface area. If you don't need rich text or node graphs, delete `writing-view.tsx` / `node-canvas.tsx` plus their deps (`@tiptap/*`, `tiptap-markdown`).
-- **Firebase/Hugging Face/OpenAlex names leak into UI copy.** Grep before renaming the product; strings like "Buddy", "RRL", "RRW" appear across onboarding and dashboard.
-- **npm, not pnpm/yarn.** Lockfile is `package-lock.json`. Don't switch package managers mid-hackathon.
-
-### Common first moves for a pivot
-```bash
-# strip Buddy-specific features
-rm -rf components/buddy app/api/{chat,onboarding,suggest-title,find-reference,transcribe}
-
-# strip Python backend if not needed
-rm -rf api components/Analyzer.tsx components/buddy/integrated-literature-analyzer.tsx
-
-# strip rich-text editor
-npm uninstall @tiptap/react @tiptap/starter-kit @tiptap/extension-image @tiptap/extension-placeholder @tiptap/pm tiptap-markdown
-rm components/buddy/writing-view.tsx
-
-# strip Firebase entirely
-npm uninstall firebase
-rm lib/firebase.ts lib/firestore.ts lib/firestore-service.ts
-# then remove firebase imports from components/auth-provider.tsx
-```
-
-### Branches to mine from origin (if useful)
-The upstream `yeruka-ui/GDG-Research-Hackathon` repo has 14 feature branches — some are worth cherry-picking features from:
-
-| Branch | What it contains |
-|---|---|
-| `AI-Integration` | Enhanced Groq usage / tool calls |
-| `authentication` | Real Firebase auth implementation |
-| `voice-module` | Voice note recording + Whisper |
-| `lit-gap-analyzer` | Literature-gap UI + backend |
-| `clash-detector` | Conflict detection (likely canvas-related) |
-| `psych-test-processing` | Analyzer / stats logic |
-| `rrl-reference-fuctions` | APA/reference utilities |
-| `ui-redesign` | UI/UX refresh |
-| `image-persistence` | Image storage |
-
-To fetch from upstream:
-```bash
-git remote add upstream https://github.com/yeruka-ui/GDG-Research-Hackathon.git
-git fetch upstream
-git checkout -b feature-name upstream/<branch-name>
-```
+- **TipTap and the canvas** carry significant surface area (`writing-view.tsx` / `node-canvas.tsx`, `@tiptap/*` + `tiptap-markdown`).
+- **Firebase/Hugging Face/OpenAlex names leak into UI copy.** Grep before renaming anything product-facing; strings like "Buddy", "RRL", "RRW" appear across onboarding and the dashboard.
+- **npm, not pnpm/yarn.** Lockfile is `package-lock.json`.
 
 ---
 
