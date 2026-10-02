@@ -25,7 +25,7 @@ const AuthContext = createContext<AuthContextType>({ user: null, loading: true }
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const { setUserId, setProjects, setShowOnboarding } = useBuddyStore()
+  const { setUserId, setProjects, setShowOnboarding, setVoiceNotes } = useBuddyStore()
 
   useEffect(() => {
     if (!firebaseEnabled || !auth) {
@@ -58,6 +58,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           console.error("Error fetching projects:", error)
           setProjects([])
         }
+        try {
+          const voiceNotes = await firestoreService.getVoiceNotes(user.uid)
+          setVoiceNotes(voiceNotes)
+        } catch (error) {
+          console.error("Error fetching voice notes:", error)
+        }
       } else {
         setProjects([])
       }
@@ -69,7 +75,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       clearTimeout(timeout)
       unsubscribe()
     }
-  }, [setUserId, setProjects, setShowOnboarding])
+  }, [setUserId, setProjects, setShowOnboarding, setVoiceNotes])
 
   return (
     <AuthContext.Provider value={{ user, loading }}>

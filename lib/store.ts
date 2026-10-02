@@ -34,6 +34,7 @@ interface BuddyStore {
 
   // Voice Notes
   voiceNotes: VoiceNote[]
+  setVoiceNotes: (notes: VoiceNote[]) => void
   isVoiceNotePanelOpen: boolean
   // Set briefly by a quick-capture deep link (?quickCapture=voice) to auto-start
   // recording once the voice note panel opens; consumer resets it after use.
@@ -246,6 +247,7 @@ export const useBuddyStore = create<BuddyStore>()(
       globalChat: [],
       sectionChats: {},
       voiceNotes: [],
+      setVoiceNotes: (notes) => set({ voiceNotes: notes }),
       isVoiceNotePanelOpen: false,
       autoStartRecording: false,
       
@@ -335,34 +337,49 @@ export const useBuddyStore = create<BuddyStore>()(
         return { projects: state.projects.map(p => p.id === project.id ? updated : p) }
       }),
 
-      addVoiceNote: (content, tag) => set(state => ({
-        voiceNotes: [{ id: generateId(), content, tag, createdAt: new Date().toISOString() }, ...state.voiceNotes]
-      })),
-
-      addPendingVoiceNote: (audioBase64, tag) => {
-        const id = generateId()
-        set(state => ({
-          voiceNotes: [{
-            id, content: '', tag, createdAt: new Date().toISOString(),
-            transcriptionStatus: 'pending', pendingAudioBase64: audioBase64,
-          }, ...state.voiceNotes]
-        }))
-        return id
+      addVoiceNote: (content, tag) => {
+        const note: VoiceNote = { id: generateId(), content, tag, createdAt: new Date().toISOString() }
+        set(state => ({ voiceNotes: [note, ...state.voiceNotes] }))
+        const { userId } = get()
+        if (userId) firestoreService.saveVoiceNote(userId, note)
       },
 
-      markVoiceNoteTranscribed: (id, content) => set(state => ({
-        voiceNotes: state.voiceNotes.map(n =>
-          n.id === id ? { ...n, content, transcriptionStatus: 'done', pendingAudioBase64: undefined } : n
-        )
-      })),
+      addPendingVoiceNote: (audioBase64, tag) => {
+        const note: VoiceNote = {
+          id: generateId(), content: '', tag, createdAt: new Date().toISOString(),
+          transcriptionStatus: 'pending', pendingAudioBase64: audioBase64,
+        }
+        set(state => ({ voiceNotes: [note, ...state.voiceNotes] }))
+        const { userId } = get()
+        if (userId) firestoreService.saveVoiceNote(userId, note)
+        return note.id
+      },
 
-      removeVoiceNote: (id) => set(state => ({
-        voiceNotes: state.voiceNotes.filter(n => n.id !== id)
-      })),
+      markVoiceNoteTranscribed: (id, content) => {
+        set(state => ({
+          voiceNotes: state.voiceNotes.map(n =>
+            n.id === id ? { ...n, content, transcriptionStatus: 'done', pendingAudioBase64: undefined } : n
+          )
+        }))
+        const { userId } = get()
+        // Not clearing pendingAudioBase64 in Firestore here (Firestore's updateDoc
+        // rejects literal `undefined` values) — harmless, it's just unused once done.
+        if (userId) firestoreService.updateVoiceNote(id, { content, transcriptionStatus: 'done' })
+      },
 
-      updateVoiceNote: (id, content, tag) => set(state => ({
-        voiceNotes: state.voiceNotes.map(n => n.id === id ? { ...n, content, tag } : n)
-      })),
+      removeVoiceNote: (id) => {
+        set(state => ({ voiceNotes: state.voiceNotes.filter(n => n.id !== id) }))
+        const { userId } = get()
+        if (userId) firestoreService.deleteVoiceNote(id)
+      },
+
+      updateVoiceNote: (id, content, tag) => {
+        set(state => ({
+          voiceNotes: state.voiceNotes.map(n => n.id === id ? { ...n, content, tag } : n)
+        }))
+        const { userId } = get()
+        if (userId) firestoreService.updateVoiceNote(id, { content, tag })
+      },
 
       setAutoStartRecording: (on) => set({ autoStartRecording: on }),
 
