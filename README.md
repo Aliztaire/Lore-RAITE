@@ -1,12 +1,12 @@
-# Lore-RAITE
+# Scrybe
 
-> **Buddy** — an AI research-writing assistant for students writing empirical papers. This README is the single source of truth for the current state — **read it fully before changing anything**, especially if you are an AI agent.
+> **Scrybe** — an AI research-writing assistant for students writing empirical papers. This README is the single source of truth for the current state — **read it fully before changing anything**, especially if you are an AI agent.
 
 ---
 
-## What Buddy does
+## What Scrybe does
 
-Buddy is an AI research assistant for psychology / social-science students writing empirical papers (hypothesis + Review of Related Literature + stats). It wraps the full workflow — topic framing → literature discovery → outlining → writing → statistical analysis → `.docx` export — in a single Next.js app with a Python/FastAPI companion backend for heavy work.
+Scrybe is an AI research assistant for psychology / social-science students writing empirical papers (hypothesis + Review of Related Literature + stats). It wraps the full workflow — topic framing → literature discovery → outlining → writing → statistical analysis → `.docx` export — in a single Next.js app with a Python/FastAPI companion backend for heavy work.
 
 The product flow:
 1. **Onboarding** — enter a topic, AI asks 5 clarifying questions, system recommends seminal papers via OpenAlex.
@@ -378,7 +378,7 @@ entirely instead of standing up a second one with its own auth/API wiring.
 - **Zustand store is coupled to the `Project` schema** in `lib/types.ts`. Changing the domain model means touching ~15 call sites in `lib/store.ts`. Prefer a new store file over mutating the existing one if a new feature needs a different core entity.
 - **Every mutating action calls `firestoreService.*`, and it's live.** There's no debouncing — rapid edits (e.g. typing in the TipTap editor, if it's wired to `updateSection` per keystroke) will write to Firestore on every call. Add debouncing before that becomes a cost/quota problem.
 - **TipTap and the canvas** carry significant surface area (`writing-view.tsx` / `node-canvas.tsx`, `@tiptap/*` + `tiptap-markdown`).
-- **Firebase/Hugging Face/OpenAlex names leak into UI copy.** Grep before renaming anything product-facing; strings like "Buddy", "RRL", "RRW" appear across onboarding and the dashboard.
+- **Hugging Face/OpenAlex/Firebase names leak into UI copy.** Grep before renaming anything product-facing; strings like "RRL", "RRW" appear across onboarding and the dashboard.
 - **npm, not pnpm/yarn.** Lockfile is `package-lock.json`.
 
 ---
@@ -412,4 +412,4 @@ Firestore rules/indexes aren't part of the Vercel deploy — publish them separa
 
 ## License
 
-TBD by the Lore-RAITE team.
+TBD by the Scrybe team.
