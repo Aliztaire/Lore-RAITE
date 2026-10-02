@@ -12,12 +12,11 @@ import {
   Plus,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
   X,
   ExternalLink,
   ChevronDown,
-  ChevronUp,
-  FileText,
+  Check,
+  Loader2,
   Bold,
   Italic,
   Strikethrough,
@@ -29,10 +28,12 @@ import {
   Minus,
   Volume2,
   VolumeX,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import ReactMarkdown from "react-markdown";
+import { ChatMarkdown } from "./chat-message";
+import { AnimatePresence, motion } from "motion/react";
 import { useBuddyStore } from "@/lib/store";
 import type { ChatMessage, Reference } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -74,7 +75,7 @@ function ResizableImageComponent({ node, updateAttributes, selected }: NodeViewP
       <img
         src={src}
         alt={alt || ''}
-        style={{ width: '100%', borderRadius: 8, display: 'block', outline: selected ? '2px solid #a0ad6d' : undefined }}
+        style={{ width: '100%', borderRadius: 6, display: 'block', outline: selected ? '2px solid var(--primary)' : undefined }}
       />
       <div
         ref={handleRef}
@@ -82,7 +83,7 @@ function ResizableImageComponent({ node, updateAttributes, selected }: NodeViewP
         style={{
           position: 'absolute', bottom: 4, right: 4,
           width: 14, height: 14,
-          background: '#a0ad6d',
+          background: 'var(--primary)',
           borderRadius: 2,
           cursor: 'nwse-resize',
           opacity: selected ? 1 : 0,
@@ -285,6 +286,78 @@ function formatCitation(ref: Reference, style: "APA" | "MLA" | "Chicago"): strin
   return ref.citation;
 }
 
+// ─── Section outlines: what a student can write in each section ─────────────────
+
+interface GuidePoint { title: string; hint: string }
+
+const SECTION_GUIDES: { match: RegExp; points: GuidePoint[] }[] = [
+  { match: /introduc/i, points: [
+    { title: 'Background and context', hint: 'Set the scene: what is already known about the topic and why it matters.' },
+    { title: 'Problem statement', hint: 'Name the specific issue or gap your study responds to.' },
+    { title: 'Purpose and research questions', hint: 'State what the study sets out to find, as research questions or hypotheses.' },
+    { title: 'Significance', hint: 'Who benefits from the answer, and how: theory, practice, or policy.' },
+    { title: 'Scope and key terms', hint: 'Set the boundaries of the study and define the terms readers need.' },
+  ] },
+  { match: /literature|related|review/i, points: [
+    { title: 'Theoretical framework', hint: 'The theory or model that frames your variables and expectations.' },
+    { title: 'Key themes in prior research', hint: 'Organise by theme rather than paper by paper; synthesise, don’t list.' },
+    { title: 'Agreements and debates', hint: 'Where studies converge, where they conflict, and why.' },
+    { title: 'Methods used so far', hint: 'Common designs, samples, and measures, and their limitations.' },
+    { title: 'The gap', hint: 'What remains unanswered, leading directly to your research question.' },
+  ] },
+  { match: /method/i, points: [
+    { title: 'Research design', hint: 'Experimental, correlational, qualitative, or mixed, and why it fits your question.' },
+    { title: 'Participants and sampling', hint: 'Who took part, how they were recruited, and how many.' },
+    { title: 'Instruments and measures', hint: 'Scales or tools used, with evidence of validity and reliability.' },
+    { title: 'Procedure', hint: 'Step by step, what participants experienced, in enough detail to replicate.' },
+    { title: 'Data analysis', hint: 'The tests or coding approach you used, matched to each research question.' },
+    { title: 'Ethical considerations', hint: 'Consent, confidentiality, and approval from the ethics board.' },
+  ] },
+  { match: /result|finding/i, points: [
+    { title: 'Sample description', hint: 'Final sample size, demographics, and response or completion rates.' },
+    { title: 'Descriptive statistics', hint: 'Means, standard deviations, and frequencies for the main variables.' },
+    { title: 'Findings by research question', hint: 'Report each test with its statistic, p-value, and effect size.' },
+    { title: 'Tables and figures', hint: 'Summarise key results visually and refer to each one in the text.' },
+    { title: 'Report, don’t interpret', hint: 'Save explanations of what the results mean for the Discussion.' },
+  ] },
+  { match: /discuss/i, points: [
+    { title: 'Summary of key findings', hint: 'Briefly answer each research question in plain language.' },
+    { title: 'Interpretation', hint: 'Explain the results and compare them with the literature you reviewed.' },
+    { title: 'Implications', hint: 'What the findings mean for theory, practice, or policy.' },
+    { title: 'Limitations', hint: 'Honest constraints of the design, sample, or measures, and their effect.' },
+    { title: 'Future research', hint: 'Specific next studies your findings point toward.' },
+  ] },
+  { match: /conclu|recommend|summary/i, points: [
+    { title: 'Restate the purpose', hint: 'Remind the reader what the study set out to do.' },
+    { title: 'Main answer', hint: 'The central conclusion your evidence supports.' },
+    { title: 'Recommendations', hint: 'Concrete actions for practitioners, institutions, or researchers.' },
+    { title: 'Closing statement', hint: 'End on why this work matters, without introducing new evidence.' },
+  ] },
+]
+
+function guideFor(section: { title: string; description?: string }): GuidePoint[] {
+  const found = SECTION_GUIDES.find(g => g.match.test(section.title))
+  if (found) return found.points
+  return [
+    { title: 'Main point', hint: section.description?.trim() || 'State the one idea this section exists to communicate.' },
+    { title: 'Evidence', hint: 'Support it with data, examples, or citations from your references.' },
+    { title: 'Analysis', hint: 'Explain what the evidence shows and how it advances your argument.' },
+    { title: 'Transition', hint: 'Link this section to the next one.' },
+  ]
+}
+
+// ─── Assistant prompts (shown as short labels on comments) ─────────────────────
+
+const AUDIT_PROMPT =
+  "Please audit my current section. Give me specific strengths, suggestions for improvement, and any missing evidence or counterarguments.";
+const FIND_REFS_PREFIX = "Find recent scholarly articles relevant to my section on";
+
+function promptLabel(text: string) {
+  if (text === AUDIT_PROMPT) return "Review this section";
+  if (text.startsWith(FIND_REFS_PREFIX)) return "Find references for this section";
+  return text;
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function WritingView() {
@@ -328,21 +401,13 @@ export function WritingView() {
       ResizableImage,
       Markdown.configure({ html: true, transformPastedText: true }),
       Placeholder.configure({
-        placeholder: 'Start writing your section here…\n\nTip: Ask the AI assistant to search for literature — references will be extracted and saved automatically.',
+        placeholder: 'Start writing this section…\n\nTip: ask the assistant below to search for literature. References it finds are saved automatically.',
       }),
     ],
     editorProps: {
       attributes: {
-        class: 'outline-none min-h-full p-6 font-serif text-base leading-relaxed prose prose-stone max-w-none ' +
-          '[&_strong]:font-bold [&_em]:italic ' +
-          '[&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-6 [&_h1]:mb-2 ' +
-          '[&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2 ' +
-          '[&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-1 ' +
-          '[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2 ' +
-          '[&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2 ' +
-          '[&_blockquote]:border-l-4 [&_blockquote]:border-[#a0ad6d] [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-gray-500 ' +
-          '[&_img]:max-w-full [&_img]:rounded-lg [&_img]:my-3 ' +
-          '[&_hr]:my-4 [&_hr]:border-gray-200',
+        // Typography lives in globals.css (.tiptap-editor .ProseMirror)
+        class: 'outline-none',
       },
       handleDOMEvents: {
         keydown: (_view, e) => {
@@ -422,13 +487,15 @@ export function WritingView() {
   const [isRecording, setIsRecording] = useState(false);
   const [showReferenceForm, setShowReferenceForm] = useState(false);
   const [expandedRefId, setExpandedRefId] = useState<string | null>(null);
-  const [refsOpen, setRefsOpen] = useState(true);
+  const [refsOpen, setRefsOpen] = useState(false); // collapsed by default so the manuscript keeps its measure
   const [citationStyle, setCitationStyle] = useState<"APA" | "MLA" | "Chicago">("APA");
   const [pendingStyle, setPendingStyle] = useState<"APA" | "MLA" | "Chicago">("APA");
   const [refFilter, setRefFilter] = useState<'all' | string>('all');
-  const [chatHeight, setChatHeight] = useState(288);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-  const isResizingChat = useRef(false);
+  // Assistant answers float over the page as comments; dismissing only hides them
+  const [dismissedComments, setDismissedComments] = useState<Set<string>>(new Set());
+  const [commentsHidden, setCommentsHidden] = useState(false);
+  // Section outline widget open/closed per section (open by default; the user can collapse it)
+  const [guideOpen, setGuideOpen] = useState<Record<string, boolean>>({});
 
   const findMatchingReference = useCallback(async () => {
     const text = selectedTextRef.current;
@@ -480,30 +547,6 @@ export function WritingView() {
       setSelectionTooltip(null);
     }, 800);
   }, [editor, refMatchState.ref, citationStyle]);
-
-  const startChatResize = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    isResizingChat.current = true;
-    document.body.style.cursor = 'row-resize';
-    document.body.style.userSelect = 'none';
-    const onMouseMove = (ev: MouseEvent) => {
-      if (!isResizingChat.current) return;
-      const container = (e.target as HTMLElement).closest('.writing-col') as HTMLElement;
-      if (!container) return;
-      const rect = container.getBoundingClientRect();
-      const newHeight = rect.bottom - ev.clientY;
-      setChatHeight(Math.min(Math.max(newHeight, 160), 520));
-    };
-    const onMouseUp = () => {
-      isResizingChat.current = false;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    };
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-  }, []);
 
   const processedToolCallIds = useRef(new Set<string>());
 
@@ -597,12 +640,6 @@ export function WritingView() {
   useEffect(() => {
     processedToolCallIds.current = new Set();
   }, [selectedSectionId]);
-
-  // ── Auto-scroll chat ─────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
 
   // ── Extract references from AI SDK tool results ───────────────────────────────
 
@@ -699,14 +736,24 @@ export function WritingView() {
       sectionId: selectedSectionId,
     });
     setChatInput("");
+    setCommentsHidden(false);
     sendMessage({ text: input });
   };
 
   const handleAudit = () => {
     if (!selectedSectionId || !currentSection || isLoading) return;
-    sendMessage({
-      text: "Please audit my current section. Give me specific strengths, suggestions for improvement, and any missing evidence or counterarguments.",
-    });
+    setCommentsHidden(false);
+    sendMessage({ text: AUDIT_PROMPT });
+  };
+
+  const handleFindReferences = () => {
+    if (!selectedSectionId || !currentSection || isLoading) return;
+    setCommentsHidden(false);
+    sendMessage({ text: `${FIND_REFS_PREFIX} "${currentSection.title}"` });
+  };
+
+  const insertGuideHeading = (title: string) => {
+    editor?.chain().focus("end").insertContent(`<h2>${title}</h2><p></p>`).run();
   };
 
   const addReference = (ref: Partial<Reference>) => {
@@ -730,14 +777,14 @@ export function WritingView() {
 
   if (!project || !currentSection) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center bg-background">
         <div className="text-center">
           <p className="text-muted-foreground mb-4">
-            Select a section to start writing
+            Select a section from the outline to start writing.
           </p>
           <Button variant="outline" onClick={() => setViewMode("dashboard")}>
-            <ChevronLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
+            <ChevronLeft />
+            Back to overview
           </Button>
         </div>
       </div>
@@ -761,209 +808,206 @@ export function WritingView() {
     ? Array.from(allRefsMap.values())
     : (allSections.find(s => s.id === refFilter)?.references ?? []);
 
+  const sectionWords = currentSection.content?.split(/\s+/).filter(Boolean).length || 0;
+
+  // Group the section's chat into comment threads: one question + the assistant's reply
+  const messageText = (m: any): string =>
+    (m.parts as any[] | undefined)?.filter(p => p.type === "text").map(p => p.text).join("") ?? m.content ?? "";
+  const threads: { id: string; question: string; replies: any[] }[] = [];
+  for (const m of messages as any[]) {
+    if (m.role === "user") threads.push({ id: m.id, question: messageText(m), replies: [] });
+    else if (threads.length > 0) threads[threads.length - 1].replies.push(m);
+    else threads.push({ id: m.id, question: "", replies: [m] });
+  }
+  const visibleThreads = threads.filter(t => !dismissedComments.has(t.id)).reverse(); // newest first
+  const latestThreadId = threads.at(-1)?.id;
+
+  const guidePoints = guideFor(currentSection);
+  const isGuideOpen = guideOpen[currentSection.id] ?? true; // open until the user collapses it
+
+  const toolbarGroups = [
+    [
+      { icon: <Bold className="h-3.5 w-3.5" />, title: 'Bold', action: fmt.bold, active: editor?.isActive('bold') },
+      { icon: <Italic className="h-3.5 w-3.5" />, title: 'Italic', action: fmt.italic, active: editor?.isActive('italic') },
+      { icon: <Strikethrough className="h-3.5 w-3.5" />, title: 'Strikethrough', action: fmt.strike, active: editor?.isActive('strike') },
+    ],
+    [
+      { icon: <Heading2 className="h-3.5 w-3.5" />, title: 'Heading 2', action: fmt.h2, active: editor?.isActive('heading', { level: 2 }) },
+      { icon: <Heading3 className="h-3.5 w-3.5" />, title: 'Heading 3', action: fmt.h3, active: editor?.isActive('heading', { level: 3 }) },
+    ],
+    [
+      { icon: <List className="h-3.5 w-3.5" />, title: 'Bullet list', action: fmt.bullet, active: editor?.isActive('bulletList') },
+      { icon: <ListOrdered className="h-3.5 w-3.5" />, title: 'Numbered list', action: fmt.ordered, active: editor?.isActive('orderedList') },
+      { icon: <Quote className="h-3.5 w-3.5" />, title: 'Blockquote', action: fmt.blockquote, active: editor?.isActive('blockquote') },
+      { icon: <Minus className="h-3.5 w-3.5" />, title: 'Divider', action: fmt.divider, active: false },
+    ],
+  ];
+
+  const closeTooltip = () => {
+    isMatchingRef.current = false;
+    setSelectionTooltip(null);
+    setRefMatchState({ loading: false, ref: null, inserted: false, noMatch: false });
+  };
+
   return (
-    <div className="flex-1 flex overflow-hidden h-full min-h-0">
+    <div className="flex-1 flex overflow-hidden h-full min-h-0 bg-background">
       {/* ── References Sidebar ─────────────────────────────────────────────── */}
       <aside
-        className="border-r border-border flex flex-col shrink-0 h-full min-h-0 transition-all duration-200"
-        style={{ width: refsOpen ? '18rem' : '2.5rem' }}
+        className="border-r border-border bg-card flex flex-col shrink-0 h-full min-h-0 transition-[width] duration-200"
+        style={{ width: refsOpen ? '18rem' : '2.75rem' }}
       >
-        {refsOpen ? (() => {
-          return (
-          <div className="flex flex-col shrink-0" style={{ backgroundColor: '#381d18' }}>
-            {/* Top bar */}
-            <div className="px-4 pt-4 pb-2">
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="font-medium text-sm flex items-center gap-2 text-white">
-                  <BookMarked className="h-4 w-4 text-white" />
-                  References
-                </h3>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-white hover:bg-white/20"
-                    onClick={() => setShowReferenceForm(true)}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-white hover:bg-white/20"
-                    onClick={() => setRefsOpen(false)}
-                    title="Collapse references"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-              <p className="text-xs text-white/60">
-                {displayedRefs.length} {displayedRefs.length === 1 ? 'source' : 'sources'}
-                {refFilter === 'all' ? ' · all sections' : ' · this section'}
-              </p>
-            </div>
-
-            {/* Filter tabs */}
-            <div className="px-3 pb-3 flex flex-wrap gap-1">
-              <button
-                onClick={() => setRefFilter('all')}
-                className="px-2.5 py-1 rounded-full text-[10px] font-semibold transition-colors"
-                style={refFilter === 'all'
-                  ? { backgroundColor: '#a0ad6d', color: '#fff' }
-                  : { backgroundColor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)' }
-                }
-              >
-                All
-              </button>
-              {allSections.map(sec => (
-                <button
-                  key={sec.id}
-                  onClick={() => setRefFilter(sec.id)}
-                  className="px-2.5 py-1 rounded-full text-[10px] font-semibold transition-colors truncate max-w-32"
-                  style={refFilter === sec.id
-                    ? { backgroundColor: '#fb804a', color: '#fff' }
-                    : { backgroundColor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)' }
-                  }
-                  title={sec.title}
+        {refsOpen ? (
+          <div className="px-4 pt-5 pb-3 shrink-0 border-b border-border">
+            <div className="flex items-center justify-between">
+              <h3 className="font-serif text-base font-semibold">References</h3>
+              <div className="flex items-center">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground"
+                  onClick={() => setShowReferenceForm(true)}
+                  title="Add reference manually"
                 >
-                  {sec.title}
-                </button>
-              ))}
+                  <Plus />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground"
+                  onClick={() => setRefsOpen(false)}
+                  title="Collapse references"
+                >
+                  <ChevronLeft />
+                </Button>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <label htmlFor="ref-filter" className="sr-only">Filter references by section</label>
+              <select
+                id="ref-filter"
+                value={refFilter}
+                onChange={e => setRefFilter(e.target.value)}
+                className="flex-1 min-w-0 h-8 text-xs rounded-full border border-input bg-card px-3 outline-none focus:border-ring"
+              >
+                <option value="all">All sections</option>
+                {allSections.map(sec => (
+                  <option key={sec.id} value={sec.id}>{sec.title}</option>
+                ))}
+              </select>
+              <span className="text-xs text-subtle-foreground tabular-nums shrink-0">
+                {displayedRefs.length}
+              </span>
             </div>
           </div>
-          );
-        })() : (
+        ) : (
           <button
             onClick={() => setRefsOpen(true)}
-            className="flex-1 flex items-center justify-center hover:bg-white/10 transition-colors"
-            style={{ backgroundColor: '#381d18' }}
-            title="Open References"
+            className="flex-1 flex flex-col items-center pt-5 gap-3 text-muted-foreground hover:text-highlight-strong transition-colors duration-150"
+            title="Open references"
           >
-            <ChevronRight className="h-4 w-4 text-white" />
+            <ChevronRight className="h-4 w-4" />
+            <span className="text-xs [writing-mode:vertical-rl] rotate-180 tracking-wide">References</span>
           </button>
         )}
 
-        {/* Body — white, only when open */}
-        {refsOpen && <div className="flex-1 overflow-y-auto p-2 space-y-2" style={{ backgroundColor: '#ffffff' }}>
-          {displayedRefs.length === 0 ? (
-            <div className="text-xs text-muted-foreground text-center py-8 px-3 space-y-2">
-              <FileText className="h-8 w-8 mx-auto opacity-30" />
-              <p className="font-medium">No references yet</p>
-              <p className="opacity-70 leading-relaxed">
-                Ask the AI to search for literature and references will appear
-                here automatically in APA 7 format.
-              </p>
-            </div>
-          ) : (
-            displayedRefs.map((ref) => (
-              <div
-                key={ref.id}
-                className="rounded-lg bg-white border border-border text-xs transition-colors overflow-hidden"
-              >
-                {/* Use button */}
-                {(() => {
-                  const inBib = (project?.bibliography || []).includes(ref.id)
-                  return (
-                    <button
-                      onClick={() => inBib ? removeFromBibliography(ref.id) : addToBibliography(ref.id)}
-                      className="w-full flex items-center justify-between px-2 py-1.5 text-[10px] font-semibold transition-colors"
-                      style={inBib
-                        ? { backgroundColor: '#a0ad6d', color: '#fff' }
-                        : { backgroundColor: '#ffffff', color: '#a0ad6d' }
-                      }
-                    >
-                      <span>{inBib ? '✓ Added to Bibliography' : '+ Use in Paper'}</span>
-                    </button>
-                  )
-                })()}
-                {/* Collapsed header */}
-                <div
-                  className="p-2 flex items-start gap-2 cursor-pointer transition-colors"
-                  style={{ backgroundColor: '#fef5dd' }}
-                  onClick={() =>
-                    setExpandedRefId(expandedRefId === ref.id ? null : ref.id)
-                  }
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold leading-snug line-clamp-2" style={{ color: '#381d18' }}>
-                      {ref.title}
-                    </p>
-                    <p className="mt-0.5 truncate text-muted-foreground">
-                      {ref.authors.length > 0
-                        ? `${toAPA7Author(ref.authors[0])}${
-                            ref.authors.length > 1 ? " et al." : ""
-                          }`
-                        : "Unknown Author"}{" "}
-                      ({ref.year})
-                    </p>
-                  </div>
-                  {expandedRefId === ref.id ? (
-                    <ChevronUp className="h-3 w-3 shrink-0 mt-0.5 text-muted-foreground" />
-                  ) : (
-                    <ChevronDown className="h-3 w-3 shrink-0 mt-0.5 text-muted-foreground" />
-                  )}
-                </div>
-
-                {/* Expanded detail panel */}
-                {expandedRefId === ref.id && (
-                  <div className="px-2 pb-3 space-y-3 border-t border-border/50 pt-2">
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-                        {citationStyle === 'APA' ? 'APA 7' : citationStyle === 'MLA' ? 'MLA 9' : 'Chicago'} Citation
-                      </p>
-                      <p className="leading-relaxed text-foreground/90 select-text">
-                        {formatCitation(ref, citationStyle)}
-                      </p>
-                    </div>
-
-                    {ref.notes && (
-                      <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-                          Abstract
-                        </p>
-                        <p className="italic text-muted-foreground leading-relaxed line-clamp-6">
-                          {ref.notes}
-                        </p>
-                      </div>
-                    )}
-
-                    {ref.doi && (
-                      <a
-                        href={
-                          ref.doi.startsWith("http")
-                            ? ref.doi
-                            : `https://doi.org/${ref.doi}`
-                        }
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-primary hover:underline"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        View Source
-                      </a>
-                    )}
-                  </div>
-                )}
+        {refsOpen && (
+          <div className="flex-1 overflow-y-auto">
+            {displayedRefs.length === 0 ? (
+              <div className="text-xs text-muted-foreground px-4 py-8 leading-relaxed">
+                <p className="text-foreground font-medium mb-1">No references yet</p>
+                <p>
+                  Ask the assistant to search for literature. Results are added here automatically in APA 7 format.
+                </p>
               </div>
-            ))
-          )}
-        </div>}
+            ) : (
+              <ul className="divide-y divide-border">
+                {displayedRefs.map((ref) => {
+                  const inBib = (project?.bibliography || []).includes(ref.id);
+                  const expanded = expandedRefId === ref.id;
+                  return (
+                    <li key={ref.id} className="text-xs">
+                      <button
+                        className="w-full text-left px-4 pt-3 pb-2 flex items-start gap-2 transition-colors duration-150"
+                        onClick={() => setExpandedRefId(expanded ? null : ref.id)}
+                        aria-expanded={expanded}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium leading-snug line-clamp-2 text-foreground">
+                            {ref.title}
+                          </p>
+                          <p className="mt-1 truncate text-muted-foreground">
+                            {ref.authors.length > 0
+                              ? `${toAPA7Author(ref.authors[0])}${ref.authors.length > 1 ? " et al." : ""}`
+                              : "Unknown author"}{" "}
+                            ({ref.year})
+                          </p>
+                        </div>
+                        <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 mt-1 text-subtle-foreground transition-transform duration-150", expanded && "rotate-180")} />
+                      </button>
 
+                      {expanded && (
+                        <div className="px-4 pb-2 pt-1 space-y-3">
+                          <div>
+                            <p className="eyebrow mb-1">
+                              {citationStyle === 'APA' ? 'APA 7' : citationStyle === 'MLA' ? 'MLA 9' : 'Chicago'} citation
+                            </p>
+                            <p className="leading-relaxed text-foreground/90 select-text">
+                              {formatCitation(ref, citationStyle)}
+                            </p>
+                          </div>
+                          {ref.notes && (
+                            <div>
+                              <p className="eyebrow mb-1">Abstract</p>
+                              <p className="text-muted-foreground leading-relaxed line-clamp-6">{ref.notes}</p>
+                            </div>
+                          )}
+                          {ref.doi && (
+                            <a
+                              href={ref.doi.startsWith("http") ? ref.doi : `https://doi.org/${ref.doi}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-primary hover:underline hover:text-highlight-strong underline-offset-2"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              View source
+                            </a>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="px-4 pb-3">
+                        <button
+                          onClick={() => inBib ? removeFromBibliography(ref.id) : addToBibliography(ref.id)}
+                          className={cn(
+                            "inline-flex items-center gap-1 text-xs transition-colors duration-150",
+                            inBib ? "text-primary" : "text-muted-foreground hover:text-highlight-strong"
+                          )}
+                          title={inBib ? "Remove from bibliography" : "Add to bibliography"}
+                        >
+                          {inBib ? <><Check className="h-3 w-3" /> In bibliography</> : <><Plus className="h-3 w-3" /> Use in paper</>}
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
 
         {/* Manual add-reference form */}
         {refsOpen && showReferenceForm && (
-          <div className="p-3 border-t border-border shrink-0" style={{ backgroundColor: '#fef5dd' }}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium">Add Reference</span>
+          <div className="p-4 border-t border-border shrink-0 bg-background">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium">Add reference</span>
               <Button
                 variant="ghost"
-                size="icon"
-                className="h-5 w-5"
+                size="icon-sm"
+                className="h-6 w-6 text-muted-foreground"
                 onClick={() => setShowReferenceForm(false)}
+                aria-label="Close"
               >
-                <X className="h-3 w-3" />
+                <X />
               </Button>
             </div>
             <form
@@ -983,11 +1027,11 @@ export function WritingView() {
               }}
               className="space-y-2"
             >
-              <Input name="title" placeholder="Title" className="h-8 text-xs" required />
-              <Input name="authors" placeholder="Authors (comma separated)" className="h-8 text-xs" required />
-              <Input name="year" placeholder="Year" className="h-8 text-xs" required />
-              <Button type="submit" size="sm" className="w-full h-7 text-xs">
-                Add
+              <Input name="title" placeholder="Title" className="h-8 text-xs md:text-xs" required />
+              <Input name="authors" placeholder="Authors (comma separated)" className="h-8 text-xs md:text-xs" required />
+              <Input name="year" placeholder="Year" className="h-8 text-xs md:text-xs" required />
+              <Button type="submit" size="sm" className="w-full">
+                Add reference
               </Button>
             </form>
           </div>
@@ -997,182 +1041,139 @@ export function WritingView() {
       {/* ── Main Editor ────────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0 h-full min-h-0 writing-col">
         {/* Section header */}
-        <div className="h-14 border-b border-border flex items-center justify-between px-4 shrink-0" style={{ backgroundColor: '#381d18' }}>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-white hover:bg-white/20 hover:text-white"
-              onClick={() => setViewMode("dashboard")}
-            >
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              Back
-            </Button>
-            <div className="h-4 w-px bg-white/30" />
-            <div>
-              <h2 className="font-medium text-white">{currentSection.title}</h2>
-              <p className="text-xs text-white/70">
-                {currentSection.description}
-              </p>
+        <div className="h-14 border-b border-border bg-card flex items-center justify-between px-4 shrink-0 gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="min-w-0">
+              <h2 className="font-serif text-base font-semibold leading-tight truncate">{currentSection.title}</h2>
+              {currentSection.description && (
+                <p className="text-xs text-muted-foreground truncate">{currentSection.description}</p>
+              )}
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             {ttsSupported && (
               <button
                 onClick={toggleReadSectionAloud}
                 disabled={!currentSection.content?.trim()}
-                className="text-white/70 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="text-muted-foreground hover:text-highlight-strong disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 title={isSpeakingSection ? "Stop reading" : "Read section aloud"}
               >
                 {isSpeakingSection ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
               </button>
             )}
-            <span className="text-xs text-white/70">
-              {currentSection.content?.split(/\s+/).filter(Boolean).length || 0}{" "}words
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {sectionWords.toLocaleString()} words
             </span>
           </div>
         </div>
 
         {/* Formatting toolbar */}
-        <div className="shrink-0 border-b border-border flex items-center gap-0.5 px-3 py-1.5 flex-wrap" style={{ backgroundColor: '#fafaf8' }}>
-          {([
-            { icon: <Bold className="h-3.5 w-3.5" />, title: 'Bold', action: fmt.bold, active: editor?.isActive('bold') },
-            { icon: <Italic className="h-3.5 w-3.5" />, title: 'Italic', action: fmt.italic, active: editor?.isActive('italic') },
-            { icon: <Strikethrough className="h-3.5 w-3.5" />, title: 'Strikethrough', action: fmt.strike, active: editor?.isActive('strike') },
-          ] as const).map(({ icon, title, action, active }) => (
-            <button key={title} title={title} onClick={action}
-              className="p-1.5 rounded transition-colors"
-              style={{ backgroundColor: active ? '#ede9e3' : 'transparent', color: active ? '#381d18' : '#6b7280' }}>
-              {icon}
-            </button>
-          ))}
-          <div className="w-px h-4 bg-gray-200 mx-1" />
-          {([
-            { icon: <Heading2 className="h-3.5 w-3.5" />, title: 'Heading 2', action: fmt.h2, active: editor?.isActive('heading', { level: 2 }) },
-            { icon: <Heading3 className="h-3.5 w-3.5" />, title: 'Heading 3', action: fmt.h3, active: editor?.isActive('heading', { level: 3 }) },
-          ] as const).map(({ icon, title, action, active }) => (
-            <button key={title} title={title} onClick={action}
-              className="p-1.5 rounded transition-colors"
-              style={{ backgroundColor: active ? '#ede9e3' : 'transparent', color: active ? '#381d18' : '#6b7280' }}>
-              {icon}
-            </button>
-          ))}
-          <div className="w-px h-4 bg-gray-200 mx-1" />
-          {([
-            { icon: <List className="h-3.5 w-3.5" />, title: 'Bullet list', action: fmt.bullet, active: editor?.isActive('bulletList') },
-            { icon: <ListOrdered className="h-3.5 w-3.5" />, title: 'Numbered list', action: fmt.ordered, active: editor?.isActive('orderedList') },
-            { icon: <Quote className="h-3.5 w-3.5" />, title: 'Blockquote', action: fmt.blockquote, active: editor?.isActive('blockquote') },
-            { icon: <Minus className="h-3.5 w-3.5" />, title: 'Divider', action: fmt.divider, active: false },
-          ] as const).map(({ icon, title, action, active }) => (
-            <button key={title} title={title} onClick={action}
-              className="p-1.5 rounded transition-colors"
-              style={{ backgroundColor: active ? '#ede9e3' : 'transparent', color: active ? '#381d18' : '#6b7280' }}>
-              {icon}
-            </button>
+        <div className="shrink-0 border-b border-border bg-card flex items-center gap-1 px-3 py-1 flex-wrap" role="toolbar" aria-label="Formatting">
+          {toolbarGroups.map((group, gi) => (
+            <div key={gi} className="flex items-center gap-1">
+              {gi > 0 && <div className="w-px h-4 bg-border mx-2" />}
+              {group.map(({ icon, title, action, active }) => (
+                <button
+                  key={title}
+                  title={title}
+                  aria-label={title}
+                  aria-pressed={!!active}
+                  onClick={action}
+                  className={cn(
+                    "p-2 rounded-full transition-colors duration-150",
+                    active ? "bg-accent text-foreground" : "text-muted-foreground hover:text-highlight-strong"
+                  )}
+                >
+                  {icon}
+                </button>
+              ))}
+            </div>
           ))}
         </div>
 
-        {/* Rich-text editor */}
+        {/* Rich-text editor; the section outline and assistant comments float over it */}
+        <div className="flex-1 min-h-0 relative">
         <div
           ref={editorWrapRef}
-          className="flex-1 overflow-y-auto tiptap-editor relative"
-          style={{ backgroundColor: '#ffffff' }}
+          className="h-full overflow-y-auto tiptap-editor relative bg-card flex flex-col"
         >
-          <EditorContent editor={editor} className="h-full" />
+          <EditorContent editor={editor} className="flex-1" />
 
           {/* ── Selection reference tooltip ── */}
           {selectionTooltip && (
             <div
-              className="absolute z-50 shadow-xl rounded-xl border border-border overflow-hidden"
+              className="absolute z-50 rounded-md border border-border bg-popover shadow-popover overflow-hidden animate-in fade-in-0 duration-150"
               style={{
-                left: Math.max(8, Math.min(selectionTooltip.x, (editorWrapRef.current?.clientWidth ?? 600) - 280)),
+                left: Math.max(8, Math.min(selectionTooltip.x, (editorWrapRef.current?.clientWidth ?? 600) - 296)),
                 top: Math.max(8, selectionTooltip.y),
-                width: 272,
-                backgroundColor: '#1c1008',
+                width: 288,
               }}
               onMouseDown={e => { e.preventDefault(); e.stopPropagation(); }}
             >
-              {/* Header */}
-              <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
-                <span className="text-[11px] font-semibold text-white/80 tracking-wide uppercase">Find Reference</span>
-                <button
-                  onClick={() => { isMatchingRef.current = false; setSelectionTooltip(null); setRefMatchState({ loading: false, ref: null, inserted: false, noMatch: false }); }}
-                  className="text-white/50 hover:text-white transition-colors"
-                >
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                <span className="eyebrow">Cite a source</span>
+                <button onClick={closeTooltip} className="text-subtle-foreground hover:text-highlight-strong transition-colors" aria-label="Close">
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
 
-              {/* Selected text preview */}
-              <div className="px-3 py-2 border-b border-white/10">
-                <p className="text-[10px] text-white/50 mb-0.5">Selected text</p>
-                <p className="text-xs text-white/80 italic line-clamp-2">"{selectionTooltip.text}"</p>
+              <div className="px-3 py-2 border-b border-border">
+                <p className="text-xs text-muted-foreground italic line-clamp-2 font-serif">&ldquo;{selectionTooltip.text}&rdquo;</p>
               </div>
 
-              {/* Action area */}
-              <div className="px-3 py-2.5 space-y-2">
+              <div className="px-3 py-3 space-y-2">
                 {!refMatchState.ref && !refMatchState.loading && !refMatchState.noMatch && (
-                  <button
-                    onClick={findMatchingReference}
-                    className="w-full py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5"
-                    style={{ backgroundColor: '#a0ad6d', color: '#fff' }}
-                  >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Find Best Match
-                  </button>
+                  <Button size="sm" className="w-full" onClick={findMatchingReference}>
+                    Find matching reference
+                  </Button>
                 )}
 
                 {refMatchState.noMatch && !refMatchState.loading && (
-                  <div className="space-y-1.5">
-                    <p className="text-center text-[11px] text-white/50">No matching reference found.</p>
-                    <button
+                  <div className="space-y-2">
+                    <p className="text-center text-xs text-muted-foreground">No matching reference found.</p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full"
                       onClick={() => { setRefMatchState(s => ({ ...s, noMatch: false })); findMatchingReference(); }}
-                      className="w-full py-1.5 rounded-lg text-[11px] font-medium transition-all"
-                      style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}
                     >
                       Try again
-                    </button>
+                    </Button>
                   </div>
                 )}
 
                 {refMatchState.loading && (
-                  <div className="flex items-center gap-2 py-1.5 justify-center">
-                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#a0ad6d] border-t-transparent" />
-                    <span className="text-[11px] text-white/60">Searching references…</span>
+                  <div className="flex items-center gap-2 py-1 justify-center text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Searching references…
                   </div>
                 )}
 
                 {refMatchState.ref && !refMatchState.inserted && (
                   <>
-                    <div className="rounded-lg p-2 space-y-0.5" style={{ backgroundColor: 'rgba(255,255,255,0.07)' }}>
-                      <p className="text-[10px] text-[#a0ad6d] font-semibold uppercase tracking-wide">Best match</p>
-                      <p className="text-[11px] text-white leading-snug line-clamp-3">{refMatchState.ref.title}</p>
-                      <p className="text-[10px] text-white/50">
+                    <div className="pb-3 mb-1 border-b border-border">
+                      <p className="eyebrow mb-1">Best match</p>
+                      <p className="text-xs text-foreground leading-snug line-clamp-3">{refMatchState.ref.title}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
                         {refMatchState.ref.authors?.[0] && `${refMatchState.ref.authors[0].trim().split(/\s+/).at(-1)} `}
                         {refMatchState.ref.year && `(${refMatchState.ref.year})`}
                       </p>
                     </div>
-                    <div className="flex gap-1.5">
-                      <button
-                        onClick={findMatchingReference}
-                        className="flex-1 py-1.5 rounded-lg text-[11px] font-medium transition-all"
-                        style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}
-                      >
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="flex-1" onClick={findMatchingReference}>
                         Try again
-                      </button>
-                      <button
-                        onClick={insertCitationAtSelection}
-                        className="flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all"
-                        style={{ backgroundColor: '#a0ad6d', color: '#fff' }}
-                      >
-                        Insert Citation
-                      </button>
+                      </Button>
+                      <Button size="sm" className="flex-1" onClick={insertCitationAtSelection}>
+                        Insert citation
+                      </Button>
                     </div>
                   </>
                 )}
 
                 {refMatchState.inserted && (
-                  <p className="text-center text-[11px] text-[#a0ad6d] font-semibold py-1">✓ Citation inserted!</p>
+                  <p className="flex items-center justify-center gap-2 text-xs text-primary py-1">
+                    <Check className="h-3.5 w-3.5" /> Citation inserted
+                  </p>
                 )}
 
                 {!refMatchState.loading && !refMatchState.ref && !refMatchState.inserted && (() => {
@@ -1182,12 +1183,12 @@ export function WritingView() {
                     project?.outline.conclusion.references?.length ?? 0,
                   ].reduce((a, b) => a + b, 0);
                   return total === 0 ? (
-                    <p className="text-[10px] text-yellow-400/70 text-center">
-                      No references found in this project yet. Ask the AI chat to search for literature first.
+                    <p className="text-xs text-warning text-center leading-relaxed">
+                      This project has no references yet. Ask the assistant to search for literature first.
                     </p>
                   ) : (
-                    <p className="text-[10px] text-white/40 text-center">
-                      AI will match from {total} reference{total !== 1 ? 's' : ''} in this project
+                    <p className="text-xs text-subtle-foreground text-center">
+                      Matches against {total} reference{total !== 1 ? 's' : ''} in this project
                     </p>
                   );
                 })()}
@@ -1196,162 +1197,205 @@ export function WritingView() {
           )}
         </div>
 
-        {/* ── AI Chat Panel ─────────────────────────────────────────────────── */}
-        <div className="border-t border-border flex flex-col shrink-0" style={{ backgroundColor: '#fef5dd', height: chatHeight }}>
-          {/* Resize handle */}
-          <div
-            onMouseDown={startChatResize}
-            className="h-1.5 w-full cursor-row-resize hover:bg-[#381d18]/20 transition-colors shrink-0 flex items-center justify-center group"
-          >
-            <div className="w-8 h-0.5 rounded-full bg-gray-300 group-hover:bg-[#381d18]/40 transition-colors" />
-          </div>
-          {/* Chat header */}
-          <div className="p-3 border-b border-border flex items-center justify-between shrink-0" style={{ backgroundColor: '#381d18' }}>
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-white" />
-              <span className="text-sm font-medium text-white">AI Assistant</span>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleAudit}
-              disabled={isLoading}
-              className="gap-2 text-xs text-white border-white/40 hover:bg-white/20 hover:text-white bg-transparent"
+          {/* ── Floating right column (stays put while the page scrolls): outline, then comments ── */}
+          <div className="absolute top-4 right-4 bottom-4 z-30 w-80 flex flex-col items-end gap-3 pointer-events-none">
+
+            {/* Section outline widget — collapses to a small pill */}
+            <section
+              aria-label="Section outline"
+              className={cn(
+                "pointer-events-auto shrink-0 border border-border bg-popover shadow-popover transition-[border-radius] duration-200",
+                isGuideOpen ? "w-full rounded-2xl" : "rounded-full",
+              )}
             >
-              <AlertTriangle className="h-3 w-3" />
-              What&apos;s Missing?
-            </Button>
-          </div>
-
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-            {messages.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-4">
-                Ask questions about your writing, or ask me to{" "}
-                <button
-                  className="text-primary underline underline-offset-2"
-                  onClick={() =>
-                    sendMessage({
-                      text: `Find recent scholarly articles relevant to my section on "${currentSection.title}"`,
-                    })
-                  }
-                >
-                  find references
-                </button>{" "}
-                for this section.
-              </p>
-            ) : (
-              messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={cn(
-                    "px-4 py-3 rounded-xl text-sm",
-                    msg.role === "user" ? "max-w-[80%] ml-auto" : "w-full"
-                  )}
-                  style={msg.role === "user"
-                    ? { backgroundColor: '#ffffff', color: '#381d18', border: '1px solid #e5e7eb' }
-                    : { backgroundColor: '#fff8ee', color: '#381d18', border: '1px solid #ede9e3' }
-                  }
-                >
-                  {(msg.parts as any[])?.map((part: any, i: number) => {
-                    if (part.type === "text") {
-                      return (
-                        <div
-                          key={i}
-                          className="prose prose-sm max-w-none leading-relaxed
-                            [&_strong]:font-semibold [&_strong]:text-[#381d18]
-                            [&_em]:italic
-                            [&_h1]:text-sm [&_h1]:font-bold [&_h1]:mt-3 [&_h1]:mb-1 [&_h1]:text-[#381d18]
-                            [&_h2]:text-sm [&_h2]:font-bold [&_h2]:mt-3 [&_h2]:mb-1 [&_h2]:text-[#381d18]
-                            [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 [&_h3]:text-[#381d18]
-                            [&_p]:mb-2 [&_p:last-child]:mb-0
-                            [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2 [&_ul]:space-y-1.5
-                            [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2 [&_ol]:space-y-1.5
-                            [&_li]:leading-snug [&_li]:text-[#381d18]
-                            [&_li>strong]:block [&_li>strong]:mb-0.5
-                            [&_a]:text-blue-600 [&_a]:underline
-                            [&_hr]:my-3 [&_hr]:border-[#ede9e3]
-                            [&_blockquote]:border-l-2 [&_blockquote]:border-[#a0ad6d] [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-[#b0976a]"
-                        >
-                          <ReactMarkdown>{part.text}</ReactMarkdown>
-                        </div>
-                      );
-                    }
-                    if (part.type === "tool-search_scholarly_articles") {
-                      const count = Array.isArray(part.output) ? part.output.length : 0;
-                      return (
-                        <div key={i} className="flex items-center gap-2 text-xs my-1.5 px-2 py-1.5 rounded-md" style={{ backgroundColor: '#f0f3e0', color: '#a0ad6d' }}>
-                          <BookMarked className="h-3 w-3 shrink-0" />
-                          {part.state === "output-available"
-                            ? `Retrieved ${count} reference${count !== 1 ? "s" : ""} from OpenAlex — added to References panel`
-                            : "Searching OpenAlex…"}
-                        </div>
-                      );
-                    }
-                    return null;
-                  }) ?? (
-                    <p className="whitespace-pre-wrap leading-relaxed">
-                      {(msg as any).content}
-                    </p>
-                  )}
-                </div>
-              ))
-            )}
-
-            {isLoading && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="flex gap-1">
-                  {[0, 150, 300].map((delay) => (
-                    <span
-                      key={delay}
-                      className="w-2 h-2 rounded-full bg-primary animate-bounce"
-                      style={{ animationDelay: `${delay}ms` }}
-                    />
-                  ))}
-                </div>
-                <span>Thinking…</span>
-              </div>
-            )}
-            <div ref={chatEndRef} />
-          </div>
-
-          {/* Chat input */}
-          <div className="p-3 border-t border-border shrink-0" style={{ backgroundColor: '#fef5dd' }}>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSendMessage();
-              }}
-              className="flex items-center gap-2"
-            >
-              <Button
-                type="button"
-                variant={isRecording ? "destructive" : "outline"}
-                size="icon"
-                className="shrink-0"
-                onClick={() => setIsRecording(!isRecording)}
+              <button
+                onClick={() => setGuideOpen(prev => ({ ...prev, [currentSection.id]: !isGuideOpen }))}
+                aria-expanded={isGuideOpen}
+                className={cn("w-full flex items-center justify-between gap-3 text-left group", isGuideOpen ? "px-4 pt-4 pb-3" : "px-4 py-2")}
               >
-                {isRecording ? (
-                  <MicOff className="h-4 w-4" />
+                {isGuideOpen ? (
+                  <span className="min-w-0">
+                    <span className="eyebrow block">Section outline</span>
+                    <span className="block text-sm text-foreground mt-1 truncate group-hover:text-highlight-strong transition-colors duration-150">
+                      What to cover in {currentSection.title}
+                    </span>
+                  </span>
                 ) : (
-                  <Mic className="h-4 w-4" />
+                  <span className="flex items-center gap-2 text-xs text-muted-foreground group-hover:text-highlight-strong transition-colors duration-150">
+                    <ListOrdered className="h-3.5 w-3.5" />
+                    Section outline
+                  </span>
                 )}
-              </Button>
-              <Input
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Ask a question or request a literature search…"
-                className="flex-1 bg-white"
-                disabled={isLoading}
-              />
-              <Button
-                type="submit"
-                size="icon"
-                disabled={!chatInput.trim() || isLoading}
-              >
-                <Send className="h-4 w-4" />
-              </Button>
-            </form>
+                <ChevronDown className={cn("h-4 w-4 shrink-0 text-subtle-foreground transition-transform duration-200", isGuideOpen && "rotate-180")} />
+              </button>
+              <AnimatePresence initial={false}>
+                {isGuideOpen && (
+                  <motion.div
+                    key="guide"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto", transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }}
+                    exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}
+                    className="overflow-hidden"
+                  >
+                    <ol className="max-h-[45vh] overflow-y-auto px-4 pb-2">
+                      {guidePoints.map((point, i) => (
+                        <li key={point.title} className="flex items-start gap-3 py-3 border-t border-border group">
+                          <span className="w-5 pt-px text-xs text-subtle-foreground tabular-nums">{String(i + 1).padStart(2, "0")}</span>
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-sm font-medium text-foreground">{point.title}</span>
+                            <span className="block text-xs text-muted-foreground mt-1 leading-relaxed">{point.hint}</span>
+                            <button
+                              onClick={() => insertGuideHeading(point.title)}
+                              className="mt-1 text-xs text-subtle-foreground hover:text-highlight-strong transition-colors duration-150"
+                              title={`Add "${point.title}" as a heading in your text`}
+                            >
+                              + Add as heading
+                            </button>
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </section>
+
+            {/* Assistant comments */}
+            {threads.length > 0 && (
+              commentsHidden || visibleThreads.length === 0 ? (
+                visibleThreads.length > 0 && (
+                  <button
+                    onClick={() => setCommentsHidden(false)}
+                    className="pointer-events-auto shrink-0 flex items-center gap-2 rounded-full border border-border bg-popover px-4 py-2 text-xs text-muted-foreground shadow-popover hover:text-highlight-strong transition-colors duration-150"
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    Show {visibleThreads.length} comment{visibleThreads.length !== 1 ? "s" : ""}
+                  </button>
+                )
+              ) : (
+                <aside
+                  aria-label="Assistant comments"
+                  className="pointer-events-auto w-full min-h-0 overflow-y-auto flex flex-col gap-3 pb-1"
+                >
+                  <div className="flex items-center justify-between px-2">
+                    <span className="eyebrow">Assistant comments</span>
+                    <button
+                      onClick={() => setCommentsHidden(true)}
+                      className="text-xs text-muted-foreground hover:text-highlight-strong transition-colors duration-150"
+                    >
+                      Hide
+                    </button>
+                  </div>
+                <AnimatePresence initial={false}>
+                  {visibleThreads.map(thread => {
+                    const hasReply = thread.replies.some(r =>
+                      messageText(r).trim() || (r.parts as any[] | undefined)?.some(p => p.type === "tool-search_scholarly_articles"));
+                    const waiting = isLoading && thread.id === latestThreadId && !hasReply;
+                    return (
+                      <motion.article
+                        key={thread.id}
+                        layout
+                        initial={{ opacity: 0, y: -6, filter: "blur(3px)" }}
+                        animate={{ opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } }}
+                        exit={{ opacity: 0, transition: { duration: 0.15 } }}
+                        className="rounded-2xl border border-border bg-popover p-4 shadow-popover"
+                      >
+                        <div className="flex items-start gap-2">
+                          <p className="flex-1 text-xs text-muted-foreground italic line-clamp-2">
+                            {thread.question ? promptLabel(thread.question) : "Assistant"}
+                          </p>
+                          <button
+                            onClick={() => setDismissedComments(prev => new Set(prev).add(thread.id))}
+                            className="shrink-0 -mr-1 -mt-1 h-6 w-6 flex items-center justify-center rounded-full text-subtle-foreground hover:text-highlight-strong transition-colors duration-150"
+                            aria-label="Dismiss comment"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <div className="mt-2 max-h-80 overflow-y-auto text-sm text-foreground">
+                          {waiting ? (
+                            <p className="flex items-center gap-2 text-muted-foreground">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Thinking…
+                            </p>
+                          ) : !hasReply ? (
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                              No answer came back. The assistant needs an <span className="font-mono">HF_API_TOKEN</span> in <span className="font-mono">.env.local</span>; once it&rsquo;s set, ask again.
+                            </p>
+                          ) : (
+                            thread.replies.map((msg: any) =>
+                              (msg.parts as any[])?.map((part: any, i: number) => {
+                                if (part.type === "text") return <ChatMarkdown key={`${msg.id}-${i}`} text={part.text} />;
+                                if (part.type === "tool-search_scholarly_articles") {
+                                  const count = Array.isArray(part.output) ? part.output.length : 0;
+                                  return (
+                                    <p key={`${msg.id}-${i}`} className="flex items-center gap-2 text-xs my-2 text-muted-foreground">
+                                      <BookMarked className="h-3 w-3 shrink-0" />
+                                      {part.state === "output-available"
+                                        ? `Found ${count} reference${count !== 1 ? "s" : ""} on OpenAlex. Added to References.`
+                                        : "Searching OpenAlex…"}
+                                    </p>
+                                  );
+                                }
+                                return null;
+                              }) ?? <p key={msg.id} className="whitespace-pre-wrap">{msg.content}</p>
+                            )
+                          )}
+                        </div>
+                      </motion.article>
+                    );
+                  })}
+                </AnimatePresence>
+              </aside>
+              )
+            )}
+          </div>
+        </div>
+
+        {/* ── Ask the assistant (answers appear as comments on the page) ────── */}
+        <div className="px-4 py-3 border-t border-border shrink-0 bg-card">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSendMessage();
+            }}
+            className="flex items-center gap-2"
+          >
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn("shrink-0", isRecording ? "text-foreground bg-accent" : "text-muted-foreground")}
+              onClick={() => setIsRecording(!isRecording)}
+              aria-label={isRecording ? "Stop dictation" : "Start dictation"}
+              aria-pressed={isRecording}
+            >
+              {isRecording ? <MicOff /> : <Mic />}
+            </Button>
+            <Input
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="Ask a question or request a literature search…"
+              className="flex-1"
+              disabled={isLoading}
+            />
+            <Button
+              type="submit"
+              size="icon"
+              disabled={!chatInput.trim() || isLoading}
+              aria-label="Send"
+            >
+              {isLoading ? <Loader2 className="animate-spin" /> : <Send />}
+            </Button>
+          </form>
+          <div className="mt-2 ml-12 flex items-center gap-1">
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={handleAudit} disabled={isLoading}>
+              <AlertTriangle className="h-3 w-3" />
+              Review this section
+            </Button>
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={handleFindReferences} disabled={isLoading}>
+              <BookMarked className="h-3 w-3" />
+              Find references
+            </Button>
           </div>
         </div>
       </div>

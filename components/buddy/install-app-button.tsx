@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { Download } from 'lucide-react'
-import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
 
 // Fires only on browsers that support installable PWAs (Chromium-based).
 // Absent on others (e.g. iOS Safari) — no dead button there.
@@ -20,6 +18,7 @@ declare global {
 
 export function InstallAppButton() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const [showTip, setShowTip] = useState(false)
 
   useEffect(() => {
     // The inline script in app/layout.tsx (strategy="beforeInteractive")
@@ -47,10 +46,8 @@ export function InstallAppButton() {
     const onInstalled = () => {
       setDeferredPrompt(null)
       window.__deferredInstallPrompt = undefined
-      toast('Buddy is installed!', {
-        description: 'Tip: long-press the Buddy icon on your home screen and drag out "New Voice Note" to pin a dedicated quick-record icon.',
-        duration: 10000,
-      })
+      setShowTip(true)
+      setTimeout(() => setShowTip(false), 10000)
     }
     window.addEventListener('appinstalled', onInstalled)
     return () => {
@@ -60,9 +57,8 @@ export function InstallAppButton() {
     }
   }, [])
 
-  if (!deferredPrompt) return null
-
   const handleInstall = async () => {
+    if (!deferredPrompt) return
     await deferredPrompt.prompt()
     await deferredPrompt.userChoice
     setDeferredPrompt(null)
@@ -70,15 +66,29 @@ export function InstallAppButton() {
   }
 
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="gap-2 text-white/70 hover:text-white hover:bg-white/10"
-      onClick={handleInstall}
-      title="Install Buddy as an app"
-    >
-      <Download className="h-4 w-4" />
-      <span className="hidden sm:inline">Install App</span>
-    </Button>
+    <>
+      {deferredPrompt && (
+        <button
+          onClick={handleInstall}
+          title="Install Buddy as an app"
+          className="inline-flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-sm text-muted-foreground hover:text-highlight-strong transition-colors duration-150"
+        >
+          <Download className="h-4 w-4 shrink-0" />
+          <span className="hidden sm:inline">Install app</span>
+        </button>
+      )}
+
+      {showTip && (
+        <div
+          role="status"
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 max-w-sm rounded-2xl border border-border bg-card px-5 py-4 shadow-lg"
+        >
+          <p className="text-sm font-medium text-foreground">Buddy is installed!</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Tip: long-press the Buddy icon on your home screen and drag out &ldquo;New Voice Note&rdquo; to pin a dedicated quick-record icon.
+          </p>
+        </div>
+      )}
+    </>
   )
 }

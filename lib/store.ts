@@ -207,6 +207,23 @@ const createInitialEdges = (outline: Project['outline']): CanvasEdge[] => {
   return edges
 }
 
+// Full Record so adding a ViewMode won't compile until it's listed here too.
+const KNOWN_VIEW_MODES: Record<ViewMode, true> = { dashboard: true, canvas: true, writing: true, literature: true, analyzer: true }
+
+/**
+ * Upgrades localStorage written by older builds so it can't crash the app.
+ * Add a step here (and bump `version` below) whenever the persisted shape changes.
+ */
+export function migratePersistedState(persisted: unknown, _version: number): Record<string, unknown> {
+  if (!persisted || typeof persisted !== 'object') return {}
+  const state = { ...(persisted as Record<string, any>) }
+
+  // Any unknown view falls back to the overview.
+  if (!Object.hasOwn(KNOWN_VIEW_MODES, state.viewMode)) state.viewMode = 'dashboard'
+
+  return state
+}
+
 export const useBuddyStore = create<BuddyStore>()(
   persist(
     (set, get) => ({
@@ -665,6 +682,9 @@ export const useBuddyStore = create<BuddyStore>()(
     }),
     {
       name: 'buddy-storage',
+      version: 1,
+      // Old data is untyped by nature; persist merges the result over the fresh initial state.
+      migrate: (persisted, version) => migratePersistedState(persisted, version) as unknown as BuddyStore,
       // Only persist non-user data or handle user-specific persistence
       partialize: (state) => {
         const { projects, currentProjectId, userId, globalChat, sectionChats, autoStartRecording, ...rest } = state

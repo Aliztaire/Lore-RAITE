@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { LogOut } from 'lucide-react'
+import { ChevronsUpDown, LogOut } from 'lucide-react'
 
 export function UserProfile() {
   const { user } = useAuth()
@@ -31,23 +31,28 @@ export function UserProfile() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="focus:outline-none">
-        <Avatar className="h-8 w-8 transition-transform hover:scale-105 border border-border">
-          <AvatarImage src={user.photoURL || undefined} alt={user.displayName || 'User'} />
-          <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
+      <DropdownMenuTrigger className="group w-full flex items-center gap-3 rounded-full px-2 py-2 text-left transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/30 hover:text-highlight-strong">
+        <Avatar className="h-8 w-8 border border-border">
+          <AvatarImage src={user.photoURL || undefined} alt="" />
+          <AvatarFallback className="bg-muted text-muted-foreground text-xs font-medium">
             {getInitials(user.displayName)}
           </AvatarFallback>
         </Avatar>
+        <span className="flex-1 min-w-0">
+          <span className="block text-sm text-foreground truncate group-hover:text-highlight-strong transition-colors duration-150">{user.displayName || 'User'}</span>
+          {user.email && <span className="block text-xs text-subtle-foreground truncate">{user.email}</span>}
+        </span>
+        <ChevronsUpDown className="h-4 w-4 shrink-0 text-subtle-foreground" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56 bg-white border border-border shadow-md backdrop-filter-none">
+      <DropdownMenuContent align="start" side="top" className="w-56">
         <DropdownMenuLabel>
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col gap-1">
             <p className="text-sm font-medium leading-none">{user.displayName || 'User'}</p>
             <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => signOut(auth)} className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer">
+        <DropdownMenuItem onClick={() => { if (auth) signOut(auth) }} disabled={!auth} variant="destructive" className="cursor-pointer">
           <LogOut className="mr-2 h-4 w-4" />
           <span>Sign out</span>
         </DropdownMenuItem>

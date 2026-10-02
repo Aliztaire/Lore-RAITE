@@ -1,8 +1,17 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
-import { auth } from '@/lib/firebase'
+import { auth, firebaseEnabled } from '@/lib/firebase'
 import { onAuthStateChanged, User } from 'firebase/auth'
+
+// Used only when Firebase isn't configured (no NEXT_PUBLIC_FIREBASE_* vars): the app runs
+// locally with this placeholder user and nothing is written to Firestore.
+const LOCAL_USER = {
+  uid: 'local-dev-user',
+  displayName: 'Local Dev',
+  email: 'dev@local',
+  photoURL: null,
+} as unknown as User
 import { useBuddyStore } from '@/lib/store'
 import { firestoreService } from '@/lib/firestore-service'
 
@@ -19,6 +28,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const { setUserId, setProjects, setShowOnboarding } = useBuddyStore()
 
   useEffect(() => {
+    if (!firebaseEnabled || !auth) {
+      console.warn('[Buddy] Firebase is not configured; running locally without sign-in or cloud sync.')
+      setUser(LOCAL_USER)
+      setUserId(null) // keeps the store from calling Firestore
+      setLoading(false)
+      return
+    }
+
     // Safety timeout — if Firebase never responds, unblock the UI after 5s
     const timeout = setTimeout(() => setLoading(false), 5000)
 

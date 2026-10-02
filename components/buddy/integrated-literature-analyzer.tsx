@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { FileText, BookOpen, UploadCloud, Layers, CheckCircle2, AlertCircle, Lightbulb, Trash2, ArrowRight, RefreshCw, Library, BookMarked, Eye } from 'lucide-react';
+import { FileText, UploadCloud, AlertCircle, Trash2, ArrowRight, RefreshCw, Eye, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useBuddyStore } from '@/lib/store';
 import type { Reference } from '@/lib/types';
 
@@ -40,7 +41,7 @@ export function IntegratedLiteratureAnalyzer({ onPreview }: { onPreview?: () => 
 
   const runAnalysis = async () => {
     if (bibRefs.length === 0 && refFiles.length === 0) {
-      setError("No references found in your bibliography. Add references via the writing view and use '+ Use in Paper'.");
+      setError("Your bibliography is empty. In the writing view, choose 'Use in paper' on a reference to add it.");
       return;
     }
     setLoading(true);
@@ -75,281 +76,175 @@ export function IntegratedLiteratureAnalyzer({ onPreview }: { onPreview?: () => 
 
   if (!project) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center" style={{ backgroundColor: '#ffffff' }}>
-        <Library className="h-10 w-10 mb-4 opacity-30" style={{ color: '#381d18' }} />
-        <p className="font-medium" style={{ color: '#381d18' }}>Please open a project to analyze its literature gap.</p>
+      <div className="flex-1 flex flex-col items-center justify-center bg-background">
+        <p className="text-muted-foreground">Open a paper to analyze its literature gap.</p>
       </div>
     );
   }
 
+  const totalSources = bibRefs.length + refFiles.length;
+
+  const ResultList = ({ title, items, numbered = true }: { title: string; items?: string[]; numbered?: boolean }) =>
+    items && items.length > 0 ? (
+      <section>
+        <h3 className="font-serif text-lg font-semibold mb-3">{title}</h3>
+        <ol className="border-y border-border divide-y divide-border">
+          {items.map((item, i) => (
+            <li key={i} className="flex gap-4 py-3 text-base leading-relaxed">
+              {numbered && <span className="w-6 shrink-0 text-sm text-subtle-foreground tabular-nums pt-1">{String(i + 1).padStart(2, '0')}</span>}
+              <span className="flex-1">{item}</span>
+            </li>
+          ))}
+        </ol>
+      </section>
+    ) : null;
+
   return (
-    <div className="flex-1 overflow-y-auto flex flex-col" style={{ backgroundColor: '#ffffff' }}>
+    <div className="flex-1 overflow-y-auto bg-background @container">
+      <div className="max-w-5xl mx-auto px-8 py-12">
 
-      {/* Page header */}
-      <div className="px-6 py-5 border-b shrink-0" style={{ backgroundColor: '#381d18' }}>
-        <h2 className="text-xl font-serif font-bold flex items-center gap-3 text-white">
-          <Library className="w-5 h-5" style={{ color: '#a0ad6d' }} />
-          Literature Gap Analyzer
-        </h2>
-        <p className="text-xs mt-1 text-white/60">
-          Automatically evaluates your draft against your bibliography to surface gaps and coverage.
-        </p>
-      </div>
+        {/* Title */}
+        <header className="pb-8 mb-8 border-b border-border">
+          <p className="eyebrow mb-3">Research tools</p>
+          <h1 className="font-serif text-3xl font-semibold">Literature gap analysis</h1>
+          <p className="mt-2 text-muted-foreground max-w-2xl">
+            Compares your draft against your bibliography to show which gaps the literature leaves open and how your paper addresses them.
+          </p>
+        </header>
 
-      {/* Error */}
-      {error && (
-        <div className="px-6 py-3 border-b text-sm flex items-start gap-3" style={{ backgroundColor: '#fff3e0', borderColor: '#fb804a', color: '#381d18' }}>
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#fb804a' }} />
-          <p>{error}</p>
-        </div>
-      )}
+        {error && (
+          <div role="alert" className="mb-8 px-4 py-3 rounded-md text-sm flex items-start gap-3 border border-destructive/30 bg-destructive/5 text-destructive">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-1" />
+            <p>{error}</p>
+          </div>
+        )}
 
-      {/* Input panels — side by side */}
-      {!result && (
-        <div className="flex flex-1 min-h-0 divide-x" style={{ borderColor: '#e5e7eb' }}>
+        {/* Inputs */}
+        {!result && (
+          <>
+            <div className="grid @3xl:grid-cols-2 gap-10">
 
-          {/* Left: Project Draft */}
-          <div className="flex-1 flex flex-col min-w-0">
-            <div className="px-5 py-3 border-b shrink-0" style={{ backgroundColor: '#a0ad6d', borderColor: '#e5e7eb' }}>
-              <h3 className="font-semibold text-sm text-white flex items-center gap-2">
-                <FileText className="w-4 h-4 text-white" />
-                Your Project Draft
-              </h3>
-              <p className="text-[11px] mt-0.5 text-white/70">Auto-synced from your workspace</p>
+              {/* Draft */}
+              <section>
+                <h2 className="eyebrow mb-3">Your draft</h2>
+                <div className="rounded-md border border-border bg-card p-5">
+                  <p className="font-serif text-lg font-semibold leading-snug">{project.title}</p>
+                  <p className="text-sm text-muted-foreground mt-1 tabular-nums">
+                    {wordCount.toLocaleString()} words across {allSections.length} sections, synced from your workspace
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-5">
+                    {onPreview && (
+                      <Button variant="outline" size="sm" onClick={onPreview}>
+                        <Eye /> Preview draft
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="sm" onClick={() => setViewMode('writing')}>
+                      Edit draft
+                    </Button>
+                  </div>
+                </div>
+              </section>
+
+              {/* References */}
+              <section>
+                <div className="flex items-baseline justify-between mb-3">
+                  <h2 className="eyebrow">Bibliography</h2>
+                  <span className="text-xs text-subtle-foreground tabular-nums">{bibRefs.length} source{bibRefs.length !== 1 ? 's' : ''}</span>
+                </div>
+
+                {bibRefs.length === 0 ? (
+                  <div className="rounded-md border border-dashed border-input p-5 text-sm text-muted-foreground">
+                    <p>No sources in your bibliography yet.</p>
+                    <Button variant="link" className="px-0 h-auto mt-1" onClick={() => setViewMode('writing')}>
+                      Add references in the writing view <ArrowRight />
+                    </Button>
+                  </div>
+                ) : (
+                  <ol className="border-y border-border divide-y divide-border max-h-72 overflow-y-auto">
+                    {bibRefs.map((ref, i) => (
+                      <li key={ref.id} className="flex items-start gap-3 py-3 text-sm">
+                        <span className="text-subtle-foreground tabular-nums shrink-0 text-xs pt-1">[{i + 1}]</span>
+                        <div className="min-w-0">
+                          <p className="leading-snug">{ref.title}</p>
+                          {ref.doi
+                            ? <p className="truncate text-xs text-subtle-foreground mt-1">{ref.doi}</p>
+                            : <p className="text-xs text-subtle-foreground mt-1 italic">No DOI; citation text will be used</p>
+                          }
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+
+                {/* Extra PDFs */}
+                <div className="mt-5">
+                  <label className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-highlight-strong cursor-pointer transition-colors duration-150">
+                    <UploadCloud className="w-4 h-4" />
+                    Attach additional PDFs
+                    <input type="file" multiple accept=".pdf,.txt" className="sr-only" onChange={handleRefsUpload} />
+                  </label>
+                  {refFiles.length > 0 && (
+                    <ul className="mt-3 space-y-2">
+                      {refFiles.map((file, idx) => (
+                        <li key={idx} className="flex items-center justify-between px-3 py-2 rounded-md border border-border bg-card text-sm">
+                          <span className="flex items-center gap-2 min-w-0">
+                            <FileText className="w-3.5 h-3.5 shrink-0 text-subtle-foreground" />
+                            <span className="truncate">{file.name}</span>
+                          </span>
+                          <button onClick={() => removeRef(idx)} className="p-1 text-subtle-foreground hover:text-destructive transition-colors" aria-label={`Remove ${file.name}`}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </section>
             </div>
-            <div className="flex-1 flex flex-col items-center justify-center text-center p-8" style={{ backgroundColor: '#ffffff' }}>
-              <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4 border-2" style={{ backgroundColor: '#ffffff', borderColor: '#a0ad6d' }}>
-                <CheckCircle2 className="w-7 h-7" style={{ color: '#a0ad6d' }} />
+
+            <div className="mt-10 pt-6 border-t border-border flex items-center justify-between gap-4">
+              <p className="text-sm text-muted-foreground">
+                {loading ? 'Extracting and analyzing sources. This can take up to 30 seconds.' : `Ready to compare against ${totalSources} source${totalSources !== 1 ? 's' : ''}.`}
+              </p>
+              <Button size="lg" onClick={runAnalysis} disabled={loading || bibRefs.length === 0}>
+                {loading ? <><Loader2 className="animate-spin" /> Analyzing…</> : <>Run analysis <ArrowRight /></>}
+              </Button>
+            </div>
+          </>
+        )}
+
+        {/* Results */}
+        {result && !loading && (
+          <div className="space-y-12">
+            <div className="flex items-baseline justify-between">
+              <p className="text-sm text-muted-foreground">
+                Evaluated against {totalSources} source{totalSources !== 1 ? 's' : ''}.
+              </p>
+              <Button variant="ghost" size="sm" onClick={() => setResult(null)}>
+                <RefreshCw /> Start over
+              </Button>
+            </div>
+
+            <div className="grid @3xl:grid-cols-2 gap-10">
+              <ResultList title="Gaps in the literature" items={result.established_gaps} />
+              <ResultList title="How your draft addresses them" items={result.draft_evaluation?.gaps_filled} />
+            </div>
+
+            {result.draft_evaluation && (
+              <div className="grid @3xl:grid-cols-2 gap-10">
+                <ResultList title="Strengths" items={result.draft_evaluation.strengths} numbered={false} />
+                <ResultList title="Weaknesses" items={result.draft_evaluation.weaknesses} numbered={false} />
               </div>
-              <h4 className="font-semibold mb-1" style={{ color: '#381d18' }}>{project.title}</h4>
-              <p className="text-xs mb-5" style={{ color: '#a0ad6d' }}>{wordCount} words synchronized</p>
-              <button
-                onClick={() => setViewMode('writing')}
-                className="text-xs font-semibold px-4 py-2 rounded-full border transition-colors hover:opacity-80"
-                style={{ backgroundColor: '#fef5dd', color: '#381d18', borderColor: '#a0ad6d' }}
-              >
-                Edit Content First
-              </button>
-              {onPreview && (
-                <button
-                  onClick={onPreview}
-                  className="mt-2 flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-full border transition-colors hover:opacity-80"
-                  style={{ backgroundColor: '#381d18', color: '#fff', borderColor: '#381d18' }}
-                >
-                  <Eye className="w-3.5 h-3.5" /> Preview Draft
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Right: Bibliography refs */}
-          <div className="flex-1 flex flex-col min-w-0">
-            <div className="px-5 py-3 border-b shrink-0" style={{ backgroundColor: '#a0ad6d', borderColor: '#e5e7eb' }}>
-              <h3 className="font-semibold text-sm text-white flex items-center gap-2">
-                <BookMarked className="w-4 h-4 text-white" />
-                Reference Articles
-              </h3>
-              <p className="text-[11px] mt-0.5 text-white/70">Auto-pulled from your bibliography</p>
-            </div>
-
-            <div className="flex-1 overflow-y-auto divide-y" style={{ borderColor: '#e5e7eb', backgroundColor: '#ffffff' }}>
-              {bibRefs.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center gap-3 p-8">
-                  <BookMarked className="w-8 h-8 opacity-20" style={{ color: '#381d18' }} />
-                  <p className="text-sm" style={{ color: '#381d18' }}>No bibliography references yet.</p>
-                  <button
-                    onClick={() => setViewMode('writing')}
-                    className="text-xs font-semibold px-4 py-2 rounded-full border transition-colors hover:opacity-80"
-                    style={{ backgroundColor: '#fef5dd', color: '#381d18', borderColor: '#381d18' }}
-                  >
-                    Go add references →
-                  </button>
-                </div>
-              ) : (
-                bibRefs.map((ref, i) => (
-                  <div key={ref.id} className="flex items-start gap-3 px-5 py-3 text-xs">
-                    <span className="font-bold shrink-0 mt-0.5" style={{ color: '#a0ad6d' }}>[{i + 1}]</span>
-                    <div className="min-w-0">
-                      <p className="font-medium" style={{ color: '#381d18' }}>{ref.title}</p>
-                      {ref.doi
-                        ? <p className="truncate mt-0.5 opacity-50" style={{ color: '#381d18' }}>{ref.doi}</p>
-                        : <p className="mt-0.5 opacity-40 italic" style={{ color: '#381d18' }}>No DOI — citation text used</p>
-                      }
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Extra PDFs */}
-            <div className="px-5 py-4 border-t space-y-2 shrink-0" style={{ borderColor: '#e5e7eb', backgroundColor: '#ffffff' }}>
-              <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#a0ad6d' }}>+ Additional PDFs</p>
-              <label className="border-2 border-dashed rounded-lg flex items-center justify-center gap-2 py-2.5 cursor-pointer hover:opacity-80 transition-colors" style={{ borderColor: '#a0ad6d', backgroundColor: '#fef5dd' }}>
-                <UploadCloud className="w-4 h-4" style={{ color: '#a0ad6d' }} />
-                <span className="text-xs font-medium" style={{ color: '#381d18' }}>Upload extra PDFs</span>
-                <input type="file" multiple accept=".pdf,.txt" className="sr-only" onChange={handleRefsUpload} />
-              </label>
-              {refFiles.map((file, idx) => (
-                <div key={idx} className="flex items-center justify-between px-3 py-2 rounded-lg border" style={{ backgroundColor: '#fef5dd', borderColor: '#e5e7eb' }}>
-                  <div className="flex items-center gap-2 overflow-hidden">
-                    <FileText className="w-3.5 h-3.5 shrink-0" style={{ color: '#a0ad6d' }} />
-                    <span className="text-xs font-medium truncate" style={{ color: '#381d18' }}>{file.name}</span>
-                  </div>
-                  <button onClick={() => removeRef(idx)} className="hover:opacity-70 p-1">
-                    <Trash2 className="w-3.5 h-3.5" style={{ color: '#fb804a' }} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Run button */}
-      {!result && (
-        <div className="border-t shrink-0" style={{ borderColor: '#e5e7eb' }}>
-          <button
-            onClick={runAnalysis}
-            disabled={loading || bibRefs.length === 0}
-            className="w-full py-4 font-semibold text-white flex items-center justify-center gap-3 transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ backgroundColor: '#381d18' }}
-          >
-            {loading ? (
-              <><RefreshCw className="w-5 h-5 animate-spin" />Extracting &amp; Analyzing with AI (takes up to 30s)…</>
-            ) : (
-              <><BookOpen className="w-5 h-5" style={{ color: '#a0ad6d' }} />Generate Literature Gap Analysis</>
             )}
-          </button>
-        </div>
-      )}
 
-      {/* Results */}
-      {result && !loading && (
-        <div className="flex-1 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {!result.draft_evaluation && (
+              <ResultList title="Unexplored angles and open questions" items={result.unexplored_angles} />
+            )}
 
-          {/* Result banner */}
-          <div className="px-6 py-4 border-b shrink-0" style={{ backgroundColor: '#381d18', borderColor: '#e5e7eb' }}>
-            <h3 className="font-bold text-white">Analysis Complete</h3>
-            <p className="text-xs text-white/60 mt-0.5">
-              Evaluated against {bibRefs.length + refFiles.length} reference{bibRefs.length + refFiles.length !== 1 ? 's' : ''}.
-            </p>
+            <ResultList title="Recommended next steps" items={result.suggestions} />
           </div>
-
-          {/* Gaps row */}
-          <div className="flex divide-x border-b" style={{ borderColor: '#e5e7eb' }}>
-            <div className="flex-1 flex flex-col min-w-0">
-              <div className="px-5 py-3 border-b shrink-0" style={{ backgroundColor: '#381d18', borderColor: '#e5e7eb' }}>
-                <h4 className="font-semibold text-sm text-white flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4" style={{ color: '#fb804a' }} />
-                  Missing Gaps in Literature
-                </h4>
-              </div>
-              <ul className="divide-y" style={{ borderColor: '#e5e7eb' }}>
-                {result.established_gaps?.map((gap: string, i: number) => (
-                  <li key={i} className="flex gap-3 text-sm px-5 py-3" style={{ color: '#381d18' }}>
-                    <span className="font-bold shrink-0" style={{ color: '#fb804a' }}>0{i + 1}</span>
-                    {gap}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="flex-1 flex flex-col min-w-0">
-              <div className="px-5 py-3 border-b shrink-0" style={{ backgroundColor: '#381d18', borderColor: '#e5e7eb' }}>
-                <h4 className="font-semibold text-sm text-white flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4" style={{ color: '#a0ad6d' }} />
-                  How Your Draft Fills Gaps
-                </h4>
-              </div>
-              <ul className="divide-y" style={{ borderColor: '#e5e7eb' }}>
-                {result.draft_evaluation?.gaps_filled?.map((filled: string, i: number) => (
-                  <li key={i} className="flex gap-3 text-sm px-5 py-3" style={{ color: '#381d18' }}>
-                    <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#a0ad6d' }} />
-                    {filled}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          {/* Strengths & Weaknesses */}
-          {result.draft_evaluation && (
-            <div className="border-b" style={{ borderColor: '#e5e7eb' }}>
-              <div className="px-5 py-3 border-b" style={{ backgroundColor: '#381d18', borderColor: '#e5e7eb' }}>
-                <h4 className="font-semibold text-sm text-white flex items-center gap-2">
-                  <FileText className="w-4 h-4" style={{ color: '#a0ad6d' }} />
-                  Draft Evaluation
-                </h4>
-              </div>
-              <div className="flex divide-x" style={{ borderColor: '#e5e7eb' }}>
-                <div className="flex-1 px-5 py-4">
-                  <h5 className="font-semibold text-xs uppercase tracking-wider mb-3" style={{ color: '#a0ad6d' }}>Major Strengths</h5>
-                  <ul className="list-disc pl-4 space-y-2 text-sm" style={{ color: '#381d18' }}>
-                    {result.draft_evaluation.strengths?.map((str: string, i: number) => <li key={i}>{str}</li>)}
-                  </ul>
-                </div>
-                <div className="flex-1 px-5 py-4">
-                  <h5 className="font-semibold text-xs uppercase tracking-wider mb-3" style={{ color: '#fb804a' }}>Crucial Weaknesses</h5>
-                  <ul className="list-disc pl-4 space-y-2 text-sm" style={{ color: '#381d18' }}>
-                    {result.draft_evaluation.weaknesses?.map((wk: string, i: number) => <li key={i}>{wk}</li>)}
-                  </ul>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Unexplored angles */}
-          {!result.draft_evaluation && result.unexplored_angles && (
-            <div className="border-b" style={{ borderColor: '#e5e7eb' }}>
-              <div className="px-5 py-3 border-b" style={{ backgroundColor: '#381d18', borderColor: '#e5e7eb' }}>
-                <h4 className="font-semibold text-sm text-white flex items-center gap-2">
-                  <Lightbulb className="w-4 h-4" style={{ color: '#fb804a' }} />
-                  Unexplored Angles &amp; Unanswered Questions
-                </h4>
-              </div>
-              <ul className="divide-y" style={{ borderColor: '#e5e7eb' }}>
-                {result.unexplored_angles.map((angle: string, i: number) => (
-                  <li key={i} className="flex gap-3 text-sm px-5 py-3" style={{ color: '#381d18' }}>
-                    <ArrowRight className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#a0ad6d' }} />
-                    {angle}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Suggestions */}
-          <div className="border-b" style={{ borderColor: '#e5e7eb' }}>
-            <div className="px-5 py-3 border-b" style={{ backgroundColor: '#381d18', borderColor: '#e5e7eb' }}>
-              <h4 className="font-semibold text-sm text-white flex items-center gap-2">
-                <Lightbulb className="w-4 h-4" style={{ color: '#fb804a' }} />
-                Actionable Next Steps
-              </h4>
-            </div>
-            <div className="divide-y" style={{ borderColor: '#e5e7eb' }}>
-              {result.suggestions?.map((sug: string, i: number) => (
-                <div key={i} className="flex gap-3 px-5 py-3">
-                  <span className="text-xs font-bold shrink-0 mt-0.5" style={{ color: '#fb804a' }}>0{i + 1}</span>
-                  <p className="text-sm" style={{ color: '#381d18' }}>{sug}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Clear */}
-          <div className="px-5 py-4 flex justify-center shrink-0">
-            <button
-              onClick={() => setResult(null)}
-              className="flex items-center gap-2 font-semibold text-sm transition-colors py-2 px-5 rounded-lg border hover:opacity-80"
-              style={{ color: '#381d18', borderColor: '#381d18', backgroundColor: '#fef5dd' }}
-            >
-              <RefreshCw className="w-4 h-4" />
-              Clear Analysis
-            </button>
-          </div>
-
-        </div>
-      )}
-
+        )}
+      </div>
     </div>
   );
 }

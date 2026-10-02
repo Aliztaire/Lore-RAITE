@@ -1,28 +1,41 @@
 import type { Metadata, Viewport } from 'next'
-import { Urbanist } from 'next/font/google'
+import { Inter, Source_Serif_4, JetBrains_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import Script from 'next/script'
 import './globals.css'
 
-const _urbanist = Urbanist({
-  subsets: ["latin"],
-  variable: '--font-urbanist',
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
   display: 'swap',
-});
+})
+
+const sourceSerif = Source_Serif_4({
+  subsets: ['latin'],
+  variable: '--font-source-serif',
+  display: 'swap',
+})
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-jetbrains-mono',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
-  title: 'Buddy - AI Research Assistant',
-  description: 'Your AI-powered research companion for academic writing',
+  title: 'Buddy — Research Writing Assistant',
+  description: 'A research and writing companion for academic papers',
   generator: 'v0.app',
 }
 
 export const viewport: Viewport = {
-  themeColor: '#fdfbfd',
+  themeColor: '#faf8f4',
 }
 
 import { AuthProvider } from '@/components/auth-provider'
 import { PwaRegister } from '@/components/pwa-register'
-import { Toaster } from '@/components/ui/sonner'
+import { ConfirmProvider } from '@/components/buddy/confirm-dialog'
+import { ThemeProvider } from '@/components/theme-provider'
 
 export default function RootLayout({
   children,
@@ -30,8 +43,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body className={`${_urbanist.variable} font-sans antialiased`}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${inter.variable} ${sourceSerif.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
         {/* beforeinstallprompt can fire before React hydrates; capture it
             this early so install-app-button.tsx can never miss it. */}
         <Script id="capture-install-prompt" strategy="beforeInteractive">
@@ -43,11 +56,14 @@ export default function RootLayout({
             });
           `}
         </Script>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+          <AuthProvider>
+            <ConfirmProvider>
+              {children}
+            </ConfirmProvider>
+          </AuthProvider>
+        </ThemeProvider>
         <PwaRegister />
-        <Toaster />
         <Analytics />
       </body>
     </html>

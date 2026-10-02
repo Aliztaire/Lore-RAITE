@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useBuddyStore } from '@/lib/store'
 import { Onboarding } from '@/components/buddy/onboarding'
-import { DashboardHeader } from '@/components/buddy/dashboard-header'
+import { AppSidebar, MobileTopBar } from '@/components/buddy/app-sidebar'
 import { ChecklistSidebar } from '@/components/buddy/checklist-sidebar'
 import { DashboardOverview } from '@/components/buddy/dashboard-overview'
 import { NodeCanvas } from '@/components/buddy/node-canvas'
@@ -17,15 +17,39 @@ import { DocumentPreviewModal } from '@/components/buddy/document-preview-modal'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/auth-provider'
 import { useSyncPendingVoiceNotes } from '@/hooks/use-sync-pending-voice-notes'
+import { useConfirm } from '@/components/buddy/confirm-dialog'
+import { Appear } from '@/components/buddy/appear'
+import type { ViewMode } from '@/lib/types'
+
+interface ViewContext {
+  openPreview: () => void
+}
+
+/**
+ * One entry per ViewMode. Typed as a full Record, so adding a ViewMode (e.g. 'adviser',
+ * 'ai-log') fails to compile until its view is registered here; then add a NavItem in
+ * components/buddy/navigation.ts.
+ */
+const VIEWS: Record<ViewMode, (ctx: ViewContext) => React.ReactNode> = {
+  dashboard: () => <DashboardOverview />,
+  canvas: () => <NodeCanvas />,
+  writing: () => <WritingView />,
+  literature: ({ openPreview }) => <IntegratedLiteratureAnalyzer onPreview={openPreview} />,
+  analyzer: () => <Analyzer />,
+}
 
 export default function BuddyApp() {
-  const { showOnboarding, viewMode, getCurrentProject, projects, focusMode, setVoiceNotePanelOpen, setAutoStartRecording } = useBuddyStore()
+  const {
+    showOnboarding, viewMode, getCurrentProject, projects, focusMode, chatSidebarOpen, chatSidebarPinned,
+    setVoiceNotePanelOpen, setAutoStartRecording,
+  } = useBuddyStore()
   const project = getCurrentProject()
   const [isHydrated, setIsHydrated] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
 
   const { user, loading } = useAuth()
   const router = useRouter()
+  const { confirm, notify } = useConfirm()
 
   useSyncPendingVoiceNotes()
 
@@ -59,7 +83,11 @@ export default function BuddyApp() {
     if (!project) return
 
     const filename = `${project.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.docx`
-    const confirmed = confirm(`Export "${project.title}" as a Word document?\n\nThe file will be saved as: ${filename}`)
+    const confirmed = await confirm({
+      title: 'Export as Word document',
+      description: <>&ldquo;{project.title}&rdquo; will be saved as <span className="text-foreground">{filename}</span>.</>,
+      confirmLabel: 'Export',
+    })
     if (!confirmed) return
 
     try {
@@ -67,7 +95,7 @@ export default function BuddyApp() {
       downloadBlob(blob, filename)
     } catch (error) {
       console.error('[v0] Export failed:', error)
-      alert('Export failed. Please try again.')
+      await notify({ title: 'Export failed', description: 'The document could not be generated. Please try again.' })
     }
   }
 
@@ -75,10 +103,7 @@ export default function BuddyApp() {
   if (!isHydrated || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex items-center gap-3">
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <span className="text-muted-foreground">Loading Buddy...</span>
-        </div>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
     )
   }
@@ -88,41 +113,43 @@ export default function BuddyApp() {
     return null // We don't render anything while redirecting
   }
 
-  // Show onboarding if no projects or explicitly showing onboarding
-  if (showOnboarding || (projects.length === 0 && !project)) {
-    return (
-      <div className="h-screen bg-background flex flex-col">
-        <DashboardHeader showProjectActions={false} />
-        <Onboarding />
-      </div>
-    )
-  }
+  const onboarding = showOnboarding || (projects.length === 0 && !project)
+  // When the assistant is pinned open beside the manuscript, the outline gives way so the page keeps a readable width.
+  const assistantPinnedOpen = chatSidebarOpen && chatSidebarPinned
 
   return (
-    <div className="h-screen bg-background flex flex-col">
-      <DashboardHeader />
-      {showPreview && project && (
-        <DocumentPreviewModal project={project} onClose={() => setShowPreview(false)} onExport={handleExport} />
-      )}
+    <div className="h-screen bg-background flex overflow-hidden">
+      <AppSidebar />
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Voice Notes Panel */}
-        {project && <VoiceNoteTaker />}
+      <div className="flex-1 min-w-0 flex flex-col">
+        <MobileTopBar />
 
-        {/* Main Content Area */}
-        {viewMode === 'dashboard' && <DashboardOverview />}
-        {viewMode === 'canvas' && <NodeCanvas />}
-        {viewMode === 'writing' && <WritingView />}
-        {viewMode === 'analyzer' && <Analyzer />}
-        {viewMode === 'literature' && <IntegratedLiteratureAnalyzer onPreview={() => setShowPreview(true)} />}
-
-        {/* Checklist Sidebar - shown in dashboard and writing views (hidden in writing focus mode) */}
-        {(viewMode === 'dashboard' || (viewMode === 'writing' && !focusMode)) && project && (
-          <ChecklistSidebar />
+        {showPreview && project && (
+          <DocumentPreviewModal project={project} onClose={() => setShowPreview(false)} onExport={handleExport} />
         )}
-      </div>
 
-      <GlobalAIChat />
+        <div className="flex-1 flex overflow-hidden relative">
+          {onboarding ? (
+            <Onboarding />
+          ) : (
+            <>
+              {project && <VoiceNoteTaker />}
+
+              <main className="flex-1 min-w-0 flex">
+                <Appear id={viewMode} className="flex-1 min-w-0 flex">
+                  {VIEWS[viewMode]({ openPreview: () => setShowPreview(true) })}
+                </Appear>
+              </main>
+
+              {viewMode === 'writing' && !focusMode && project && !assistantPinnedOpen && (
+                <ChecklistSidebar />
+              )}
+
+              <GlobalAIChat />
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

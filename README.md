@@ -12,10 +12,10 @@ Buddy was an AI research assistant for psychology / social-science students writ
 
 The product flow:
 1. **Onboarding** — enter a topic, AI asks 5 clarifying questions, system recommends seminal papers via OpenAlex.
-2. **Dashboard** — section progress, word counts, next-action nudges.
-3. **Canvas** — force-directed graph of sections / concepts / evidence with typed edges (*supports / contradicts / references / elaborates*).
-4. **Writing** — TipTap rich-text editor with inline citations and voice notes.
-5. **Analyzer** — upload Excel, get a recommended statistical test (t-test, ANOVA, Mann-Whitney, Kruskal-Wallis) with outlier cleaning.
+2. **Overview** — section progress, word counts, outline and references side by side.
+3. **Concept map** (canvas) — force-directed graph of sections / concepts / evidence with typed edges (*supports / contradicts / references / elaborates*), opened from Overview's tool buttons.
+4. **Write** — TipTap rich-text editor with a floating section outline, inline citations, and assistant answers as comments on the page.
+5. **Data Analysis** — upload Excel, get a recommended statistical test (t-test, ANOVA, Mann-Whitney, Kruskal-Wallis) with outlier cleaning.
 6. **Literature** — PDF upload + literature-gap analysis.
 7. **Export** — Word doc with APA 7 bibliography.
 
@@ -196,12 +196,12 @@ Locally, `api/main.py` runs the same `_lib` logic behind one `uvicorn` server on
 | File | Role |
 |---|---|
 | `onboarding.tsx` | Multi-step wizard: topic → AI questions → RRW recommendations → project creation |
-| `dashboard-overview.tsx` | Progress bars, word counts, title-suggestion modal, confetti on completion |
-| `dashboard-header.tsx` | Top nav: project switcher, viewMode tabs, export/preview |
+| `dashboard-overview.tsx` | Progress, word counts, tool buttons, outline + references, title-suggestion dialog |
+| `app-sidebar.tsx` / `navigation.ts` | Left sidebar (project switcher, nav, theme, profile, install-app) + mobile top bar; nav config for adding views |
 | `writing-view.tsx` | TipTap editor, inline images, citation insertion, voice-note side panel, read-section-aloud |
-| `node-canvas.tsx` | Force-directed graph; drag/edit nodes; typed edges |
+| `node-canvas.tsx` | Concept map: force-directed graph, typed edges, custom nodes (line-art styling) |
 | `voice-note-taker.tsx` | MediaRecorder → Whisper → tagged notes; offline queue + read-aloud (see "Mobile / PWA" below) |
-| `install-app-button.tsx` | "Install App" button, only renders when the browser fires `beforeinstallprompt` |
+| `install-app-button.tsx` | "Install App" button + post-install pin tip, mounted in the sidebar and mobile top bar; only renders when the browser fires `beforeinstallprompt` |
 | `global-ai-chat.tsx` | Streaming chat sidebar with OpenAlex scholarly-search tool |
 | `checklist-sidebar.tsx` | Per-section completion + AI notes |
 | `integrated-literature-analyzer.tsx` | PDF upload → Python `/analyze-literature` |
@@ -251,7 +251,9 @@ Single Zustand store, persisted to `localStorage`. Groups:
 - **User & projects**: `userId`, `projects[]`, `currentProjectId` + CRUD actions.
 - **UI**: `viewMode`, `selectedSectionId`, `focusMode`, chat-sidebar pin/width/open flags.
 - **Chat**: `chatSessions[]` (named threads with UIMessage history), `activeChatId`, `globalChat[]`.
-- **Canvas**: `nodes[]`, `edges[]`, `bibliography[]`.
+- **Canvas**: `nodes[]`, `edges[]` on each project, plus node/edge actions.
+- **Bibliography**: `bibliography[]` on each project (reference IDs marked for use).
+- **Persistence**: `version: 1` with a `migrate()` that resets unknown views; extend it when the persisted shape changes.
 - **Voice**: `voiceNotes[]` + panel open flag.
 
 Every mutating action also fires `firestoreService.updateProject(...)`, which now really writes to Firestore (fire-and-forget, no debouncing) whenever `userId` is set.
@@ -289,7 +291,7 @@ entirely instead of standing up a second one with its own auth/API wiring.
 - **Installable**: `app/manifest.ts` + `app/apple-icon.tsx` (mirrors the existing
   `app/icon.tsx` convention) + icons generated from `public/BUDDY_LOGO_CIRCLE.png` under
   `public/icons/`. An "Install App" button (`components/buddy/install-app-button.tsx`)
-  appears in the dashboard header on browsers that support it.
+  appears in the sidebar (desktop) and mobile top bar on browsers that support it.
 - **Offline-resilient shell**: `public/sw.js` is a hand-written service worker — **not**
   `next-pwa`/`serwist`, since Next 16's default Turbopack doesn't run the webpack hooks
   those plugins rely on to generate a worker at build time. Network-first for the page
@@ -332,13 +334,12 @@ entirely instead of standing up a second one with its own auth/API wiring.
 - Tailwind CSS **v4** (`@tailwindcss/postcss`) + `tw-animate-css`
 
 **UI**
-- ~25 Radix UI primitives · shadcn/ui wrappers in `components/ui/` · Lucide icons
-- `sonner`, `vaul`, `cmdk`, `embla-carousel-react`, `react-resizable-panels`, `input-otp`, `react-day-picker`
-- `next-themes`, `canvas-confetti`
+- 6 Radix UI primitives · the 9 shadcn/ui wrappers the app uses in `components/ui/` · Lucide icons
+- `next-themes` (light/dark) · `motion` (screen transitions)
 - `class-variance-authority` + `clsx` + `tailwind-merge`
 
 **State & forms**
-- Zustand **5** (persist to localStorage) · React Hook Form + `@hookform/resolvers` · Zod
+- Zustand **5** (persist to localStorage) · Zod
 
 **AI**
 - Vercel AI SDK **v6** (`ai`, `@ai-sdk/react`) · `@ai-sdk/openai-compatible`
@@ -347,10 +348,10 @@ entirely instead of standing up a second one with its own auth/API wiring.
 
 **Editor & export**
 - TipTap **3** (starter-kit, image, placeholder, pm) + `tiptap-markdown` · `react-markdown`
-- `docx` (Word export) · `xlsx` (Excel import) · `recharts`
+- `docx` (Word export) · `xlsx` (Excel import)
 
 **Networking / utils**
-- `axios` · `date-fns`
+- `axios`
 
 **Auth & persistence**
 - Firebase **12** (Auth: Google + email/password; Firestore: per-user `projects` collection)
@@ -379,7 +380,7 @@ If you are an AI agent (or a human) picking this up for the new hackathon, read 
 ### Hazards
 - **Zustand store is coupled to the `Project` schema** in `lib/types.ts`. Changing the domain model means touching ~15 call sites in `lib/store.ts`. Prefer a new store file over mutating the existing one if the new product has a different core entity.
 - **Every mutating action calls `firestoreService.*`, and it's live.** There's no debouncing — rapid edits (e.g. typing in the TipTap editor, if it's wired to `updateSection` per keystroke) will write to Firestore on every call. Add debouncing before that becomes a cost/quota problem.
-- **TipTap and canvas** carry significant surface area. If you don't need rich-text or node graphs, delete `writing-view.tsx` and `node-canvas.tsx` plus their deps (`@tiptap/*`, `tiptap-markdown`) — saves ~15 dependencies.
+- **TipTap and the canvas** carry significant surface area. If you don't need rich text or node graphs, delete `writing-view.tsx` / `node-canvas.tsx` plus their deps (`@tiptap/*`, `tiptap-markdown`).
 - **Firebase/Hugging Face/OpenAlex names leak into UI copy.** Grep before renaming the product; strings like "Buddy", "RRL", "RRW" appear across onboarding and dashboard.
 - **npm, not pnpm/yarn.** Lockfile is `package-lock.json`. Don't switch package managers mid-hackathon.
 

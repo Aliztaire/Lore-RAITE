@@ -14,9 +14,15 @@ import { Project } from './types'
 
 const PROJECTS_COLLECTION = 'projects'
 
+// Only reachable when signed in, which requires Firebase to be configured (lib/firebase.ts)
+function firestore() {
+  if (!db) throw new Error('Firestore is not configured (missing NEXT_PUBLIC_FIREBASE_* env vars)')
+  return db
+}
+
 export const firestoreService = {
   async saveProject(userId: string, project: Project) {
-    const projectRef = doc(db, PROJECTS_COLLECTION, project.id)
+    const projectRef = doc(firestore(), PROJECTS_COLLECTION, project.id)
     await setDoc(projectRef, {
       ...project,
       userId,
@@ -25,7 +31,7 @@ export const firestoreService = {
   },
 
   async updateProject(projectId: string, updates: Partial<Project>) {
-    const projectRef = doc(db, PROJECTS_COLLECTION, projectId)
+    const projectRef = doc(firestore(), PROJECTS_COLLECTION, projectId)
     await updateDoc(projectRef, {
       ...updates,
       updatedAt: new Date().toISOString()
@@ -34,7 +40,7 @@ export const firestoreService = {
 
   async getProjects(userId: string): Promise<Project[]> {
     const q = query(
-      collection(db, PROJECTS_COLLECTION),
+      collection(firestore(), PROJECTS_COLLECTION),
       where('userId', '==', userId),
       orderBy('updatedAt', 'desc')
     )
@@ -49,7 +55,7 @@ export const firestoreService = {
   },
 
   async deleteProject(projectId: string) {
-    const projectRef = doc(db, PROJECTS_COLLECTION, projectId)
+    const projectRef = doc(firestore(), PROJECTS_COLLECTION, projectId)
     await deleteDoc(projectRef)
   }
 }

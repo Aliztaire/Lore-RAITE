@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Mic, Square, Loader2, Save, Trash2, X, Pencil, Search, Plus, Volume2, VolumeX, WifiOff, RefreshCw } from 'lucide-react'
+import { Mic, Square, Loader2, Trash2, X, Pencil, Search, Plus, Volume2, VolumeX, WifiOff, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -29,15 +29,10 @@ function base64ToBlob(dataUrl: string): Blob {
 
 const PRESET_TAGS = ['Idea', 'To-Do', 'Source']
 
-const getTagColor = (tag?: string, active: boolean = true) => {
-  if (!active) return "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-  switch (tag) {
-    case 'Idea': return 'bg-amber-100 text-amber-800 border-amber-200'
-    case 'To-Do': return 'bg-emerald-100 text-emerald-800 border-emerald-200'
-    case 'Source': return 'bg-cyan-100 text-cyan-800 border-cyan-200'
-    default: return 'bg-violet-100 text-violet-800 border-violet-200'
-  }
-}
+const tagClass = (active: boolean) =>
+  active
+    ? 'bg-primary-soft text-primary border-primary/40'
+    : 'bg-card text-muted-foreground border-border hover:text-highlight-strong'
 
 function TagSelector({
   value,
@@ -72,51 +67,38 @@ function TagSelector({
   const isCustomActive = value !== undefined && !PRESET_TAGS.includes(value)
 
   return (
-    <div className="flex flex-wrap gap-2 mt-3 items-center">
-      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-1">Tag As:</span>
+    <div className="flex flex-wrap gap-2 items-center">
+      <span className="eyebrow mr-1">Tag</span>
       {PRESET_TAGS.map(tag => (
         <button
           key={tag}
           onClick={() => handlePreset(tag)}
-          className={cn(
-            "text-[11px] px-3 py-1 rounded-full border transition-all font-medium cursor-pointer",
-            getTagColor(tag, value === tag)
-          )}
+          aria-pressed={value === tag}
+          className={cn('text-xs px-3 py-1 rounded-full border transition-colors duration-150', tagClass(value === tag))}
         >
           {tag}
         </button>
       ))}
 
       {showCustomInput ? (
-        <div className="flex items-center gap-1">
-          <input
-            autoFocus
-            value={customInput}
-            onChange={e => setCustomInput(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') commitCustom()
-              if (e.key === 'Escape') { setShowCustomInput(false); setCustomInput('') }
-            }}
-            onBlur={commitCustom}
-            placeholder="Custom tag…"
-            className="text-[11px] px-2 py-1 rounded-full border border-violet-300 bg-violet-50 text-violet-800 outline-none w-24 font-medium"
-          />
-        </div>
+        <input
+          autoFocus
+          value={customInput}
+          onChange={e => setCustomInput(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') commitCustom()
+            if (e.key === 'Escape') { setShowCustomInput(false); setCustomInput('') }
+          }}
+          onBlur={commitCustom}
+          placeholder="Custom tag"
+          className="text-xs px-3 py-1 rounded-full border border-ring bg-card outline-none w-24"
+        />
       ) : (
         <button
           onClick={isCustomActive ? () => onChange(undefined) : handleOtherClick}
-          className={cn(
-            "text-[11px] px-3 py-1 rounded-full border transition-all font-medium cursor-pointer flex items-center gap-1",
-            isCustomActive
-              ? getTagColor(value, true)
-              : "bg-white text-slate-500 border-slate-200 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700"
-          )}
+          className={cn('text-xs px-3 py-1 rounded-full border transition-colors duration-150 flex items-center gap-1', tagClass(isCustomActive))}
         >
-          {isCustomActive ? (
-            <>{value} <X className="h-2.5 w-2.5" /></>
-          ) : (
-            <><Plus className="h-2.5 w-2.5" /> Other</>
-          )}
+          {isCustomActive ? <>{value} <X className="h-2.5 w-2.5" /></> : <><Plus className="h-2.5 w-2.5" /> Other</>}
         </button>
       )}
     </div>
@@ -293,131 +275,121 @@ export function VoiceNoteTaker() {
   return (
     <div
       className={cn(
-        "flex flex-col h-full border-r border-border transition-all duration-300 ease-in-out shrink-0 bg-[#fef5dd]",
-        isVoiceNotePanelOpen ? "w-[340px] opacity-100" : "w-0 opacity-0 overflow-hidden"
+        "flex flex-col h-full border-r border-border shrink-0 bg-card transition-[width,opacity] duration-200",
+        isVoiceNotePanelOpen ? "w-[340px] opacity-100" : "w-0 opacity-0 overflow-hidden border-r-0"
       )}
+      aria-hidden={!isVoiceNotePanelOpen}
     >
-      <div className="flex items-center justify-between p-4 border-b shrink-0">
-        <h2 className="font-bold flex items-center gap-2 text-lg text-slate-800">
-          <Mic className="h-5 w-5 text-primary" />
-          Capture Thoughts
-        </h2>
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600 rounded-full" onClick={() => setVoiceNotePanelOpen(false)}>
-          <X className="h-4 w-4" />
+      <div className="flex items-center justify-between pl-5 pr-3 h-14 border-b border-border shrink-0">
+        <h2 className="font-serif text-base font-semibold">Voice notes</h2>
+        <Button variant="ghost" size="icon-sm" className="text-muted-foreground" onClick={() => setVoiceNotePanelOpen(false)} aria-label="Close voice notes">
+          <X />
         </Button>
       </div>
 
-      <div className="flex flex-col gap-4 border-b shrink-0 shadow-sm z-20">
-        <div className="p-5 flex flex-col gap-5">
-          <div className="flex flex-col items-center gap-3">
-            {!isRecording ? (
-              <Button
-                size="lg"
-                className="rounded-full w-16 h-16 bg-primary text-primary-foreground shadow-md hover:shadow-lg hover:scale-105 transition-all"
-                onClick={startRecording}
-                disabled={isTranscribing}
-              >
-                <Mic className="h-7 w-7" />
-              </Button>
-            ) : (
-              <div className="relative">
-                <div className="absolute inset-0 bg-red-400/30 rounded-full animate-ping" />
-                <Button
-                  size="lg"
-                  variant="destructive"
-                  className="rounded-full w-16 h-16 shadow-lg relative z-10 hover:scale-105 transition-all bg-red-500 hover:bg-red-600"
-                  onClick={stopRecording}
-                >
-                  <Square className="h-6 w-6" />
-                </Button>
-              </div>
-            )}
-            <span className="text-sm font-medium text-slate-500">
-              {isRecording ? 'Listening...' : isTranscribing ? 'Transcribing...' : 'Tap to Record'}
-            </span>
-          </div>
-
-          {error && <p className="text-xs text-red-600 text-center bg-red-50 border border-red-100 p-2 rounded-lg">{error}</p>}
-
-          {audioUrl && (
-            <div className="flex flex-col items-center mt-1">
-              <audio src={audioUrl} controls className="h-8 w-full max-w-[260px] opacity-80 hover:opacity-100 transition-opacity" />
-            </div>
+      {/* Recorder */}
+      <div className="px-5 py-5 border-b border-border shrink-0 space-y-4">
+        <div className="flex items-center gap-4">
+          {!isRecording ? (
+            <Button
+              size="icon-lg"
+              className="rounded-full h-12 w-12"
+              onClick={startRecording}
+              disabled={isTranscribing}
+              aria-label="Start recording"
+            >
+              <Mic className="size-5" />
+            </Button>
+          ) : (
+            <Button
+              size="icon-lg"
+              variant="outline"
+              className="rounded-full h-12 w-12 border-primary text-foreground hover:text-destructive"
+              onClick={stopRecording}
+              aria-label="Stop recording"
+            >
+              <Square className="size-4 fill-current" />
+            </Button>
           )}
-
-          {isTranscribing && (
-            <div className="flex justify-center items-center gap-2 py-2">
-              <Loader2 className="h-4 w-4 animate-spin text-primary" />
-              <span className="text-xs font-medium text-slate-500">Whisper is transcribing...</span>
-            </div>
-          )}
-
-          <div className="relative">
-            <textarea
-              className="w-full text-sm p-4 bg-slate-50 border border-slate-200 rounded-xl min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-colors"
-              placeholder="Your transcript will appear here..."
-              value={currentText}
-              onChange={(e) => setCurrentText(e.target.value)}
-            />
-
-            <TagSelector value={selectedTag} onChange={setSelectedTag} />
-
-            <div className="flex gap-2 mt-4">
-              <Button
-                className="flex-1 gap-2 rounded-xl font-semibold shadow-sm"
-                onClick={handleSave}
-                disabled={!currentText.trim() || isTranscribing}
-              >
-                <Save className="h-4 w-4" /> Save Note
-              </Button>
-              <Button
-                variant="outline"
-                className="rounded-xl border-slate-200 text-slate-500 hover:text-slate-700"
-                onClick={() => {
-                  setCurrentText('')
-                  setSelectedTag(undefined)
-                  if (audioUrl) { URL.revokeObjectURL(audioUrl); setAudioUrl(null) }
-                }}
-                disabled={!currentText.trim() && !audioUrl}
-              >
-                Discard
-              </Button>
-            </div>
+          <div className="text-sm">
+            <p className="text-foreground flex items-center gap-2">
+              {isRecording && <span className="h-2 w-2 rounded-full bg-foreground" aria-hidden />}
+              {isRecording ? 'Recording' : isTranscribing ? 'Transcribing…' : 'Record a note'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {isRecording ? 'Select stop when you are finished.' : 'Speech is transcribed automatically.'}
+            </p>
           </div>
+          {isTranscribing && <Loader2 className="h-4 w-4 animate-spin text-subtle-foreground ml-auto" />}
+        </div>
+
+        {error && <p role="alert" className="text-xs text-destructive border border-destructive/30 bg-destructive/5 px-3 py-2 rounded-md">{error}</p>}
+
+        {audioUrl && (
+          <audio src={audioUrl} controls className="h-8 w-full" />
+        )}
+
+        <textarea
+          className="w-full text-sm px-5 py-4 bg-card border border-input rounded-[2rem] min-h-[96px] resize-none outline-none focus:border-ring focus:ring-2 focus:ring-ring/15 transition-colors placeholder:text-subtle-foreground"
+          placeholder="Your transcript will appear here. You can also type."
+          value={currentText}
+          onChange={(e) => setCurrentText(e.target.value)}
+          aria-label="Note text"
+        />
+
+        <TagSelector value={selectedTag} onChange={setSelectedTag} />
+
+        <div className="flex gap-2">
+          <Button
+            className="flex-1"
+            onClick={handleSave}
+            disabled={!currentText.trim() || isTranscribing}
+          >
+            Save note
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setCurrentText('')
+              setSelectedTag(undefined)
+              if (audioUrl) { URL.revokeObjectURL(audioUrl); setAudioUrl(null) }
+            }}
+            disabled={!currentText.trim() && !audioUrl}
+          >
+            Discard
+          </Button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden flex flex-col bg-slate-100/50">
-        <div className="flex flex-col gap-3 px-5 py-4 border-b bg-slate-50/80 backdrop-blur-sm z-10 shrink-0">
+      {/* Saved notes */}
+      <div className="flex-1 overflow-hidden flex flex-col bg-background">
+        <div className="flex flex-col gap-3 px-5 pt-4 pb-3 shrink-0">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Your Notes</span>
-            <span className="text-xs bg-white border border-slate-200 text-slate-600 px-2.5 py-0.5 rounded-full font-bold shadow-sm">
-              {filteredNotes.length}
-            </span>
+            <span className="eyebrow">Saved notes</span>
+            <span className="text-xs text-subtle-foreground tabular-nums">{filteredNotes.length}</span>
           </div>
 
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-subtle-foreground" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search..."
-              className="h-8 pl-8 text-xs bg-white border-slate-200 rounded-lg shadow-sm focus-visible:ring-primary/30"
+              placeholder="Search notes"
+              aria-label="Search notes"
+              className="h-8 pl-10 text-xs md:text-xs"
             />
           </div>
 
           {filterTags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-2">
               {filterTags.map(tag => {
                 const isSelected = filterTag === tag
                 return (
                   <button
                     key={tag}
                     onClick={() => setFilterTag(isSelected ? undefined : tag)}
-                    className={cn(
-                      "text-[10px] px-2.5 py-0.5 rounded-full border transition-all font-medium cursor-pointer shadow-sm",
-                      getTagColor(tag, isSelected)
-                    )}
+                    aria-pressed={isSelected}
+                    className={cn('text-xs px-3 py-1 rounded-full border transition-colors duration-150', tagClass(isSelected))}
                   >
                     {tag}
                   </button>
@@ -427,116 +399,114 @@ export function VoiceNoteTaker() {
           )}
         </div>
 
-        <ScrollArea className="flex-1">
-          <div className="p-4 space-y-3">
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="px-5 pb-5">
             {filteredNotes.length === 0 ? (
-              <div className="h-40 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl m-2 bg-slate-50/50">
-                <Mic className="h-8 w-8 mb-3 opacity-40" />
-                <p className="text-sm font-medium text-slate-500">No notes found</p>
-                <p className="text-xs opacity-80 mt-1">Record a thought to get started!</p>
-              </div>
+              <p className="text-sm text-muted-foreground py-6">
+                {voiceNotes.length === 0 ? 'No notes yet. Recorded notes will appear here.' : 'No notes match your search.'}
+              </p>
             ) : (
-              filteredNotes.map(note => (
-                <div key={note.id} className="bg-white border border-slate-200 rounded-xl p-4 relative group shadow-sm hover:shadow-md transition-all text-sm flex flex-col gap-3">
-                  {editingNoteId === note.id ? (
-                    <div className="flex flex-col gap-3">
-                      <textarea
-                        className="w-full text-sm p-3 bg-slate-50 border border-slate-200 rounded-lg min-h-[90px] resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
-                        value={editContent}
-                        onChange={(e) => setEditContent(e.target.value)}
-                        autoFocus
-                      />
-                      <TagSelector value={editTag} onChange={setEditTag} />
-                      <div className="flex justify-end gap-2 pt-1 border-t border-slate-100">
-                        <Button size="sm" variant="ghost" className="h-7 text-xs px-3 rounded-lg text-slate-500" onClick={() => setEditingNoteId(null)}>
-                          Cancel
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="h-7 text-xs px-4 rounded-lg font-semibold shadow-sm"
-                          onClick={() => {
-                            if (editContent.trim()) updateVoiceNote(note.id, editContent.trim(), editTag)
-                            setEditingNoteId(null)
-                          }}
-                        >
-                          Save Changes
-                        </Button>
-                      </div>
-                    </div>
-                  ) : note.transcriptionStatus === 'pending' ? (
-                    <>
-                      <div className="flex items-center gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs font-medium">
-                        <WifiOff className="h-3.5 w-3.5 shrink-0" />
-                        Recorded offline — will transcribe automatically once you're back online.
-                      </div>
-                      <div className="flex justify-between items-end mt-1">
-                        <span className="text-[10px] font-medium text-slate-400">
-                          {new Date(note.createdAt).toLocaleDateString()} • {new Date(note.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => note.pendingAudioBase64 && retryTranscription(note.id, note.pendingAudioBase64)}
-                            disabled={retryingNoteId === note.id}
-                            className="text-slate-400 hover:text-primary p-2 hover:bg-primary/10 rounded-lg transition-colors disabled:opacity-50"
-                            title="Retry transcription now"
+              <ul className="divide-y divide-border border-y border-border">
+                {filteredNotes.map(note => (
+                  <li key={note.id} className="py-4 group text-sm">
+                    {editingNoteId === note.id ? (
+                      <div className="flex flex-col gap-3">
+                        <textarea
+                          className="w-full text-sm px-5 py-4 bg-card border border-input rounded-[2rem] min-h-[90px] resize-none outline-none focus:border-ring focus:ring-2 focus:ring-ring/15"
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          autoFocus
+                          aria-label="Edit note"
+                        />
+                        <TagSelector value={editTag} onChange={setEditTag} />
+                        <div className="flex justify-end gap-2">
+                          <Button size="sm" variant="ghost" onClick={() => setEditingNoteId(null)}>
+                            Cancel
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              if (editContent.trim()) updateVoiceNote(note.id, editContent.trim(), editTag)
+                              setEditingNoteId(null)
+                            }}
                           >
-                            {retryingNoteId === note.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                          </button>
-                          <button
-                            onClick={() => removeVoiceNote(note.id)}
-                            className="text-slate-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Delete note"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                            Save
+                          </Button>
                         </div>
                       </div>
-                    </>
-                  ) : (
-                    <>
-                      <p className="whitespace-pre-wrap leading-relaxed text-slate-700">{note.content}</p>
-                      <div className="flex justify-between items-end mt-1">
-                        <div className="flex flex-col gap-2">
-                          {note.tag && (
-                            <span className={cn("px-2 py-0.5 rounded border text-[10px] font-bold w-fit", getTagColor(note.tag, true))}>
-                              {note.tag}
-                            </span>
-                          )}
-                          <span className="text-[10px] font-medium text-slate-400">
-                            {new Date(note.createdAt).toLocaleDateString()} • {new Date(note.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    ) : note.transcriptionStatus === 'pending' ? (
+                      <>
+                        <div className="flex items-center gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs font-medium">
+                          <WifiOff className="h-3.5 w-3.5 shrink-0" />
+                          Recorded offline — will transcribe automatically once you're back online.
+                        </div>
+                        <div className="flex justify-between items-center mt-2">
+                          <span className="text-xs text-subtle-foreground">
+                            {new Date(note.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}, {new Date(note.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                           </span>
-                        </div>
-
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {ttsSupported && (
+                          <div className="flex gap-1">
                             <button
-                              onClick={() => toggleReadAloud(note)}
-                              className="text-slate-400 hover:text-primary p-2 hover:bg-primary/10 rounded-lg transition-colors"
-                              title={speakingNoteId === note.id && isSpeaking ? 'Stop reading' : 'Read aloud'}
+                              onClick={() => note.pendingAudioBase64 && retryTranscription(note.id, note.pendingAudioBase64)}
+                              disabled={retryingNoteId === note.id}
+                              className="text-subtle-foreground hover:text-highlight-strong p-2 rounded-full transition-colors disabled:opacity-50"
+                              title="Retry transcription now"
                             >
-                              {speakingNoteId === note.id && isSpeaking ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                              {retryingNoteId === note.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                             </button>
-                          )}
-                          <button
-                            onClick={() => { setEditingNoteId(note.id); setEditContent(note.content); setEditTag(note.tag) }}
-                            className="text-slate-400 hover:text-primary p-2 hover:bg-primary/10 rounded-lg transition-colors"
-                            title="Edit note"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => removeVoiceNote(note.id)}
-                            className="text-slate-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Delete note"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                            <button
+                              onClick={() => removeVoiceNote(note.id)}
+                              className="text-subtle-foreground hover:text-destructive p-2 rounded-full transition-colors"
+                              title="Delete note"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))
+                      </>
+                    ) : (
+                      <>
+                        <p className="whitespace-pre-wrap leading-relaxed text-foreground">{note.content}</p>
+                        <div className="flex justify-between items-center mt-2">
+                          <div className="flex items-center gap-2 text-xs text-subtle-foreground">
+                            {note.tag && (
+                              <span className="px-2 py-px rounded-full border border-border text-muted-foreground">{note.tag}</span>
+                            )}
+                            <span>
+                              {new Date(note.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}, {new Date(note.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                            </span>
+                          </div>
+
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
+                            {ttsSupported && (
+                              <button
+                                onClick={() => toggleReadAloud(note)}
+                                className="text-subtle-foreground hover:text-highlight-strong p-2 rounded-full transition-colors"
+                                title={speakingNoteId === note.id && isSpeaking ? 'Stop reading' : 'Read aloud'}
+                              >
+                                {speakingNoteId === note.id && isSpeaking ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                              </button>
+                            )}
+                            <button
+                              onClick={() => { setEditingNoteId(note.id); setEditContent(note.content); setEditTag(note.tag) }}
+                              className="text-subtle-foreground hover:text-highlight-strong p-2 rounded-full transition-colors"
+                              title="Edit note"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => removeVoiceNote(note.id)}
+                              className="text-subtle-foreground hover:text-destructive p-2 rounded-full transition-colors"
+                              title="Delete note"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         </ScrollArea>
