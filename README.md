@@ -39,7 +39,8 @@ Firebase Auth (Google + email/password) and Firestore (project persistence) are 
 - `lib/firestore.ts` is an unused standalone test file (adds a doc to `testCollection`). Kept for reference; safe to delete.
 - `tsconfig.tsbuildinfo` was previously committed; it is now in `.gitignore` and untracked.
 - `app/api/analyze-connections` is referenced in some branches but is not fully implemented on `master`.
-- `firestore.rules` only covers the `projects` collection (what's actually built). The adviser-linking feature (planned, not yet implemented) will need its own rule added — see the `TODO(3.2)` comment in that file.
+- `firestore.rules` covers `projects` and `voiceNotes` (what's actually built). The adviser-linking feature (planned, not yet implemented) will need its own rule added — see the `TODO(3.2)` comment in that file.
+- Each new Firestore query needs its own composite index the first time it runs — Firestore throws a "query requires an index" error with a direct console link the first time; `firestore.indexes.json` tracks the two that exist (`projects`, `voiceNotes`) as infrastructure-as-code, but the actual index still has to be created in the console (or via `firebase deploy --only firestore:indexes`) before that query works.
 
 ---
 
@@ -139,26 +140,29 @@ Locally, `api/main.py` runs the same `_lib` logic behind one `uvicorn` server on
 │  ├─ login/page.tsx    ← Google + email/password sign-in
 │  └─ api/
 │     ├─ chat/route.ts            ← streaming chat + OpenAlex tool
-│     ├─ onboarding/route.ts      ← questions + RRW recs
+│     ├─ onboarding/route.ts      ← questions + semantic-search RRL + RRW recs
+│     ├─ relevance/route.ts       ← why each recommended paper fits (AI, keyword fallback)
 │     ├─ suggest-title/route.ts   ← 3 alt titles
 │     ├─ find-reference/route.ts  ← pick ref index for a sentence
 │     └─ transcribe/route.ts      ← Whisper audio→text
 │
 ├─ components/
 │  ├─ buddy/            ← all feature UI (see table below)
-│  ├─ ui/               ← shadcn/Radix primitives
+│  ├─ ui/               ← shadcn/Radix primitives (trimmed to what's actually used)
 │  ├─ Analyzer.tsx      ← statistical analysis UI
-│  ├─ auth-provider.tsx ← real Firebase Auth (onAuthStateChanged)
+│  ├─ auth-provider.tsx ← real Firebase Auth (onAuthStateChanged); local no-sync mode if unconfigured
 │  ├─ pwa-register.tsx  ← registers public/sw.js
-│  └─ theme-provider.tsx
+│  └─ theme-provider.tsx ← next-themes wrapper (light/dark)
 │
 ├─ lib/
 │  ├─ store.ts              ← Zustand store (THE state)
 │  ├─ types.ts              ← domain model (Project/Section/Reference/…)
 │  ├─ export.ts             ← .docx generation
-│  ├─ firebase.ts           ← real Firebase init (Auth + Firestore)
-│  ├─ firestore-service.ts  ← real Firestore CRUD for the `projects` collection
+│  ├─ firebase.ts           ← real Firebase init (Auth + Firestore); null-safe when unconfigured
+│  ├─ firestore-service.ts  ← real Firestore CRUD for `projects` and `voiceNotes`
 │  ├─ firestore.ts          ← legacy test file; unused
+│  ├─ hf.ts                 ← Hugging Face client (AI SDK v6 openai-compatible provider)
+│  ├─ keywords.ts           ← term extraction/overlap, used by onboarding + /api/relevance
 │  ├─ strip-markup.ts       ← Markdown/HTML → plain text, for read-aloud
 │  └─ utils.ts              ← cn() etc.
 │
@@ -178,8 +182,8 @@ Locally, `api/main.py` runs the same `_lib` logic behind one `uvicorn` server on
 │  ├─ requirements.txt
 │  └─ README.md
 │
-├─ firestore.rules          ← security rules (projects owned by userId)
-├─ firestore.indexes.json   ← composite index for the projects query
+├─ firestore.rules          ← security rules (projects + voiceNotes, both owned by userId)
+├─ firestore.indexes.json   ← composite indexes for the projects and voiceNotes queries
 ├─ firebase.json / .firebaserc
 ├─ vercel.json              ← maxDuration for the two Python functions
 ├─ next.config.mjs          ← dev-only rewrite: /api/analyze* → localhost:8000
@@ -195,19 +199,22 @@ Locally, `api/main.py` runs the same `_lib` logic behind one `uvicorn` server on
 
 | File | Role |
 |---|---|
-| `onboarding.tsx` | Multi-step wizard: topic → AI questions → RRW recommendations → project creation |
+| `onboarding.tsx` | Multi-step wizard: topic → AI questions → semantic-search RRL + RRW recommendations → project creation; drafts itself to `sessionStorage` so a refresh mid-wizard doesn't lose progress |
 | `dashboard-overview.tsx` | Progress, word counts, tool buttons, outline + references, title-suggestion dialog |
-| `app-sidebar.tsx` / `navigation.ts` | Left sidebar (project switcher, nav, theme, profile, install-app) + mobile top bar; nav config for adding views |
+| `app-sidebar.tsx` / `navigation.ts` | Left sidebar (project switcher, nav, theme, install-app, profile) + mobile top bar; `navigation.ts` is the nav config to extend when adding a view |
 | `writing-view.tsx` | TipTap editor, inline images, citation insertion, voice-note side panel, read-section-aloud |
 | `node-canvas.tsx` | Concept map: force-directed graph, typed edges, custom nodes (line-art styling) |
-| `voice-note-taker.tsx` | MediaRecorder → Whisper → tagged notes; offline queue + read-aloud (see "Mobile / PWA" below) |
+| `voice-note-taker.tsx` | MediaRecorder → Whisper → tagged notes, synced to Firestore; offline queue + read-aloud (see "Mobile / PWA" below) |
 | `install-app-button.tsx` | "Install App" button + post-install pin tip, mounted in the sidebar and mobile top bar; only renders when the browser fires `beforeinstallprompt` |
+| `confirm-dialog.tsx` | `ConfirmProvider` + `useConfirm()` — promise-based confirm/notify dialogs, replaces `window.confirm` |
+| `appear.tsx` | Small mount/transition wrapper (`motion`) used for view and step transitions |
+| `theme-toggle.tsx` | Light/dark toggle, lives in the sidebar footer |
 | `global-ai-chat.tsx` | Streaming chat sidebar with OpenAlex scholarly-search tool |
 | `checklist-sidebar.tsx` | Per-section completion + AI notes |
 | `integrated-literature-analyzer.tsx` | PDF upload → Python `/analyze-literature` |
 | `document-preview-modal.tsx` | Live `.docx` preview before download |
 | `project-switcher.tsx` | Dropdown to switch / create projects |
-| `user-profile.tsx` | Mock user display (sign-out stub) |
+| `user-profile.tsx` | Real Firebase user display + sign-out |
 
 ---
 
@@ -237,7 +244,7 @@ Reference {
 
 CanvasNode { id, type: 'section'|'concept'|'evidence', label, x, y, data{...} }
 CanvasEdge { id, source, target, label: 'supports'|'contradicts'|'references'|'elaborates' }
-VoiceNote  { id, content, tag?, createdAt }
+VoiceNote  { id, content, tag?, createdAt, transcriptionStatus?: 'pending'|'done', pendingAudioBase64? }
 ChatMessage{ id, role, content, timestamp, sectionId? }
 ViewMode   = 'dashboard'|'canvas'|'writing'|'literature'|'analyzer'
 ```
@@ -254,9 +261,9 @@ Single Zustand store, persisted to `localStorage`. Groups:
 - **Canvas**: `nodes[]`, `edges[]` on each project, plus node/edge actions.
 - **Bibliography**: `bibliography[]` on each project (reference IDs marked for use).
 - **Persistence**: `version: 1` with a `migrate()` that resets unknown views; extend it when the persisted shape changes.
-- **Voice**: `voiceNotes[]` + panel open flag.
+- **Voice**: `voiceNotes[]` + panel open flag + `autoStartRecording` (set by the PWA quick-capture deep link).
 
-Every mutating action also fires `firestoreService.updateProject(...)`, which now really writes to Firestore (fire-and-forget, no debouncing) whenever `userId` is set.
+Every mutating action on a project fires `firestoreService.updateProject(...)`, and every voice-note action (`add`/`addPending`/`markTranscribed`/`update`/`remove`) fires the matching `firestoreService.*VoiceNote(...)` call — both fire-and-forget, no debouncing, whenever `userId` is set. Voice notes used to be `localStorage`-only (device-local); they now sync to a `voiceNotes` Firestore collection the same way projects do, so a note recorded on one device shows up on another once both are signed in.
 
 ---
 
@@ -266,7 +273,8 @@ Every mutating action also fires `firestoreService.updateProject(...)`, which no
 | Route | Method | Behaviour (real) | Behaviour (no `HF_API_TOKEN`) |
 |---|---|---|---|
 | `/api/chat` | POST | HF Llama streaming chat w/ OpenAlex tool | Mock stream, text explaining bypass |
-| `/api/onboarding` | POST (`step: 'questions' \| 'recommend'`) | HF Llama questions + OpenAlex papers + HF Llama RRW | Hard-coded fallback questions + OpenAlex only |
+| `/api/onboarding` | POST (`step: 'questions' \| 'recommend'`) | HF Llama questions (falls back to defaults on AI failure) + OpenAlex semantic search (falls back to keyword search) + HF Llama RRW | Hard-coded fallback questions + OpenAlex only |
+| `/api/relevance` | POST | One batched HF Llama call explaining why each recommended paper fits the study | Keyword-overlap explanation, labelled `source: 'keywords'` |
 | `/api/suggest-title` | POST | 3 HF Llama-generated titles | Templated titles from input |
 | `/api/find-reference` | POST | HF Llama picks best reference index | Returns first reference ID |
 | `/api/transcribe` | POST (multipart) | HF Whisper-large-v3 transcription | `"[transcription bypassed …]"` |
@@ -300,12 +308,13 @@ entirely instead of standing up a second one with its own auth/API wiring.
   flaky connections and open-to-something when offline — it is **not** a full offline-first
   rewrite (AI calls and Firestore sync still need a connection).
 - **Offline voice-note queue**: if `/api/transcribe` fails while offline,
-  `voice-note-taker.tsx` stores the raw audio as base64 in the existing
-  localStorage-persisted `voiceNotes` array (`VoiceNote.pendingAudioBase64` /
-  `transcriptionStatus`) instead of showing a hard error. `hooks/use-sync-pending-voice-
-  notes.ts` retries on the browser's `online` event; there's also a manual retry button on
-  pending notes. This is a localStorage queue sized for a handful of short clips, not a
-  general-purpose offline blob store (no IndexedDB).
+  `voice-note-taker.tsx` stores the raw audio as base64 on the note itself
+  (`VoiceNote.pendingAudioBase64` / `transcriptionStatus`) instead of showing a hard
+  error — held in `localStorage` (and, once back online, synced to Firestore like any
+  other voice note) rather than a general-purpose offline blob store (no IndexedDB), so
+  it's sized for a handful of short clips, not bulk offline recording.
+  `hooks/use-sync-pending-voice-notes.ts` retries transcription on the browser's `online`
+  event; there's also a manual retry button on pending notes.
 - **Home-screen quick-capture**: the manifest's `shortcuts` entry deep-links to
   `/?quickCapture=voice`; `app/page.tsx` reads that param once and opens the voice-note
   panel with `autoStartRecording` set, which `voice-note-taker.tsx` picks up to start
@@ -354,7 +363,7 @@ entirely instead of standing up a second one with its own auth/API wiring.
 - `axios`
 
 **Auth & persistence**
-- Firebase **12** (Auth: Google + email/password; Firestore: per-user `projects` collection)
+- Firebase **12** (Auth: Google + email/password; Firestore: per-user `projects` and `voiceNotes` collections)
 
 **Analytics**
 - `@vercel/analytics`
